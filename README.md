@@ -28,8 +28,6 @@ experimental measurements.
 -   Comparison with published STAR, ALICE, and CMS measurements
 -   Publication-quality plotting scripts
 
-```
-
 ## Requirements
 
 -   C++17
