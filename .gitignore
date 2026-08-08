@@ -3,7 +3,10 @@ __pycache__/
 # Compile files
 bin/
 
+
 # Output files
+*.out
+*.err
 *.csv
 *.log
 *.txt

@@ -1,5 +1,5 @@
 CXX     = g++
-PYTHIA  = /home/tiaan/pythia8316
+PYTHIA ?= /home/tiaan/pythia8316
 
 CXXFLAGS = -O2 $(shell $(PYTHIA)/bin/pythia8-config --cxxflags) -std=c++17
 LDFLAGS  = $(shell $(PYTHIA)/bin/pythia8-config --ldflags --libs) -pthread

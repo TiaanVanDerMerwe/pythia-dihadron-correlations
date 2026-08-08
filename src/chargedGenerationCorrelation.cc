@@ -42,7 +42,7 @@ std::string makeFilename(double COM, double POW, int SEED,
 {
     std::ostringstream oss;
     oss << "pythiaData/" << std::to_string((int)COM)
-        << "/cms/expComparison/19.2-24.0/default/dihadron_pow"
+        << "/alice/dihadron_pow"
         << std::to_string((int)POW)
         << "_pT" << std::to_string((int)pTHatMin)
         << "to"  << std::to_string((int)pTHatMax)
