@@ -32,50 +32,63 @@ kinematic windows with NO gaps between panels:
   - the panel at (row 0, col 2) also gets a sqrt(s) annotation
 """
 
+import glob
 import math
 import os
-import glob
 import re
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+from matplotlib.gridspec import GridSpec
 
-plt.rcParams.update({
-    "font.family": "serif",
-    "mathtext.fontset": "cm",   # Computer-Modern-style math, matches LaTeX default
-})
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "mathtext.fontset": "cm",  # Computer-Modern-style math, matches LaTeX default
+    }
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
-TRIG_PT_MIN  =  19.2  # GeV/c  (lower edge of trigger pT window)
-TRIG_PT_MAX  =  48.0  # GeV/c  (upper edge of trigger pT window)
+TRIG_PT_MIN = 19.2  # GeV/c  (lower edge of trigger pT window)
+TRIG_PT_MAX = 48.0  # GeV/c  (upper edge of trigger pT window)
 
-BASE_DIR   = f'plots/correlations/cms/expComparison'
-CMS_DIR    = 'datathief'
-OUTPUT_DIR = f'plots/correlations/cms/expComparison'
+BASE_DIR = "plots/correlations/cms/expComparison"
+CMS_DIR = "datathief"
+OUTPUT_DIR = "plots/correlations/cms/expComparison"
 
-SUBDIRS = [
-    '19.2-48.0'
-]
+SUBDIRS = ["19.2-48.0"]
 
-SHOW_RATIO  = False   # set False to suppress the CMS/Pythia ratio panel
-MAX_COLS    = 4      # maximum number of kinematic windows per row
+SHOW_RATIO = False  # set False to suppress the CMS/Pythia ratio panel
+MAX_COLS = 4  # maximum number of kinematic windows per row
 
 # Colour and marker style per configuration (order matches SUBDIRS)
 STYLE = {
-    '19.2-48.0':      dict(label="PYTHIA Data",       color='#4453FF', marker='^', ls='-', lw=2, zorder = 5),
+    "19.2-48.0": {
+        "label": "PYTHIA Data",
+        "color": "#4453FF",
+        "marker": "^",
+        "ls": "-",
+        "lw": 2,
+        "zorder": 5,
+    },
 }
 
-CMS_STYLE = dict(color='black', marker='*', ms=10, ls='-',
-                 markerfacecolor='black', markeredgewidth=0.8,
-                 zorder=1, label='CMS Data')
+CMS_STYLE = {
+    "color": "black",
+    "marker": "*",
+    "ms": 10,
+    "ls": "-",
+    "markerfacecolor": "black",
+    "markeredgewidth": 0.8,
+    "zorder": 1,
+    "label": "CMS Data",
+}
 
-MS      = 5  # marker size for Pythia points
-CAPSIZE = 2   # error bar cap size
+MS = 5  # marker size for Pythia points
+CAPSIZE = 2  # error bar cap size
 
 # ──────────────────────────────────────────────────────────────────────────────
 # TODO — fill these in with your actual values.
@@ -84,14 +97,14 @@ CAPSIZE = 2   # error bar cap size
 # your analysis actually uses for the trigger-associate relative
 # pseudorapidity cut (or just the single-hadron |eta| acceptance, if that's
 # what you meant).
-DETA_LABEL = r'$|\Delta\eta| < 1$'
+DETA_LABEL = r"$|\Delta\eta| < 1$"
 
 # sqrt(s) annotated in the (row=0, col=2) panel. Set to whatever collision
 # energy your PYTHIA / CMS comparison actually uses (e.g. 13 TeV, 7 TeV, ...).
-SQRT_S_LABEL = r'$\sqrt{s} = 2.76\ \mathrm{TeV}$'
+SQRT_S_LABEL = r"$\sqrt{s} = 2.76\ \mathrm{TeV}$"
 
 # (row, col) positions (0-indexed) that get the extra annotations above.
-DETA_PANEL   = (0, 1)
+DETA_PANEL = (0, 1)
 SQRT_S_PANEL = (0, 2)
 
 # Top y-axis limit for each row (row 0 = top row, etc.). Since each row
@@ -110,8 +123,7 @@ def _parse_pt_ranges_from_filename(fname):
     Returns (trig_lo, trig_hi, assoc_lo, assoc_hi) as floats, or None.
     """
     m = re.search(
-        r'trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)',
-        os.path.basename(fname)
+        r"trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)", os.path.basename(fname)
     )
     if m:
         return tuple(float(x) for x in m.groups())
@@ -133,13 +145,13 @@ def load_dphi_csvs(base_dir, subdirs):
 
     where pt_key = 'trig{lo}-{hi}_assoc{lo}-{hi}'.
     """
-    all_data   = {}
+    all_data = {}
     all_ptkeys = set()
 
     for sd in subdirs:
-        path    = os.path.join(base_dir, sd)
-        pattern = os.path.join(path, 'dphi_projection_*.csv')
-        files   = sorted(glob.glob(pattern))
+        path = os.path.join(base_dir, sd)
+        pattern = os.path.join(path, "dphi_projection_*.csv")
+        files = sorted(glob.glob(pattern))
 
         if not files:
             print(f"  [warn] No dphi CSVs found in: {path}")
@@ -156,26 +168,28 @@ def load_dphi_csvs(base_dir, subdirs):
 
             trig_lo, trig_hi, assoc_lo, assoc_hi = pt
             pt_key = (
-                f'trig{trig_lo:.1f}-{trig_hi:.1f}'
-                f'_assoc{assoc_lo:.1f}-{assoc_hi:.1f}'
+                f"trig{trig_lo:.1f}-{trig_hi:.1f}_assoc{assoc_lo:.1f}-{assoc_hi:.1f}"
             )
 
-            df      = pd.read_csv(fpath, comment='#')
-            bkg_col = (df['zyam_background'].iloc[0]
-                       if 'zyam_background' in df.columns else 0.0)
+            df = pd.read_csv(fpath, comment="#")
+            bkg_col = (
+                df["zyam_background"].iloc[0]
+                if "zyam_background" in df.columns
+                else 0.0
+            )
 
             # read error column — zeros if missing or all-NaN
-            if 'stat_err_jackknife' in df.columns:
-                err = df['stat_err_jackknife'].fillna(0.0).values
+            if "stat_err_jackknife" in df.columns:
+                err = df["stat_err_jackknife"].fillna(0.0).values
             else:
                 err = np.zeros(len(df))
 
             all_data[sd][pt_key] = {
-                'phi':        df['delta_phi_rad'].values,
-                'central':    df['dNpair_dDeltaPhi'].values,
-                'err':        err,
-                'background': bkg_col,
-                'pt_ranges':  pt,
+                "phi": df["delta_phi_rad"].values,
+                "central": df["dNpair_dDeltaPhi"].values,
+                "err": err,
+                "background": bkg_col,
+                "pt_ranges": pt,
             }
             all_ptkeys.add(pt_key)
             print(f"  Loaded [{sd}] {pt_key}  ({len(df)} bins)")
@@ -186,13 +200,11 @@ def load_dphi_csvs(base_dir, subdirs):
         Primary key: (assoc_lo, assoc_hi)  → controls which row
         Secondary:   (trig_lo,  trig_hi)   → controls which column (left→right)
         """
-        m = re.search(
-            r'trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)', key
-        )
+        m = re.search(r"trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)", key)
         if not m:
             return (0, 0, 0, 0)
         trig_lo, trig_hi, assoc_lo, assoc_hi = (float(x) for x in m.groups())
-        return (assoc_lo, assoc_hi, trig_lo, trig_hi)   # <── assoc first
+        return (assoc_lo, assoc_hi, trig_lo, trig_hi)  # <── assoc first
 
     return all_data, sorted(all_ptkeys, key=_pt_key_order)
 
@@ -202,24 +214,24 @@ def load_cms_data(cms_dir, trig_lo, trig_hi, assoc_lo, assoc_hi):
     Try to load CMS reference data for a given kinematic window.
     Returns (phi, y) arrays or (None, None).
     """
-    stem = f'CMS_{trig_lo:.0f}-{trig_hi:.0f}_{assoc_lo:.0f}-{assoc_hi:.0f}'
-    for ext in ('.csv', '.txt'):
+    stem = f"CMS_{trig_lo:.0f}-{trig_hi:.0f}_{assoc_lo:.0f}-{assoc_hi:.0f}"
+    for ext in (".csv", ".txt"):
         fpath = os.path.join(cms_dir, stem + ext)
         if os.path.exists(fpath):
             try:
-                df  = pd.read_csv(fpath)
-                phi = df['DeltaPhi'].values
-                y   = df['d2Npair'].values
+                df = pd.read_csv(fpath)
+                phi = df["DeltaPhi"].values
+                y = df["d2Npair"].values
                 idx = np.argsort(phi)
                 return phi[idx], y[idx]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"  [warn] Could not read CMS file {fpath}: {e}")
     return None, None
 
 
 def _phi_ticks():
-    ticks  = [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4, np.pi]
-    labels = [r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', r'$\pi$']
+    ticks = [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4, np.pi]
+    labels = [r"$0$", r"$\pi/4$", r"$\pi/2$", r"$3\pi/4$", r"$\pi$"]
     return ticks, labels
 
 
@@ -233,7 +245,7 @@ def _bin_edges(phi, lo=0.0, hi=np.pi):
     phi = np.asarray(phi)
     if len(phi) == 1:
         return np.array([lo, hi])
-    mids  = (phi[:-1] + phi[1:]) / 2.0
+    mids = (phi[:-1] + phi[1:]) / 2.0
     edges = np.concatenate(([lo], mids, [hi]))
     return edges
 
@@ -241,10 +253,21 @@ def _bin_edges(phi, lo=0.0, hi=np.pi):
 # ──────────────────────────────────────────────────────────────────────────────
 # Per-cell drawing helpers
 # ──────────────────────────────────────────────────────────────────────────────
-def _draw_top_panel(ax, all_data, pt_key, subdirs, style,
-                    cms_phi, cms_y, pt_ranges, show_xlabel, show_ylabel,
-                    extra_annotation=None, hide_zero_label=False,
-                    show_legend=False):
+def _draw_top_panel(
+    ax,
+    all_data,
+    pt_key,
+    subdirs,
+    style,
+    cms_phi,
+    cms_y,
+    pt_ranges,
+    show_xlabel,
+    show_ylabel,
+    extra_annotation=None,
+    hide_zero_label=False,
+    show_legend=False,
+):
     """Draw the Δφ projection panel into *ax*."""
     trig_lo, trig_hi, assoc_lo, assoc_hi = pt_ranges
     phi_ticks, phi_labels = _phi_ticks()
@@ -253,102 +276,129 @@ def _draw_top_panel(ax, all_data, pt_key, subdirs, style,
         if pt_key not in all_data.get(sd, {}):
             continue
         entry = all_data[sd][pt_key]
-        phi   = entry['phi']
-        y     = entry['central']
-        err   = entry['err']
-        st    = style[sd]
+        phi = entry["phi"]
+        y = entry["central"]
+        err = entry["err"]
+        st = style[sd]
 
         edges = _bin_edges(phi)
-        ax.stairs(y, edges, color=st['color'],
-                 linestyle="-", linewidth=3.0, label=st['label'], baseline=None,
-                 zorder=st['zorder'])
+        ax.stairs(
+            y,
+            edges,
+            color=st["color"],
+            linestyle="-",
+            linewidth=3.0,
+            label=st["label"],
+            baseline=None,
+            zorder=st["zorder"],
+        )
         if np.any(err > 0):
             ax.errorbar(
-                phi, y, yerr=err,
-                fmt="none", ms=MS, color=st['color'],
-                capsize=CAPSIZE, capthick=1.6, elinewidth=1.6,
-                linestyle=st['ls'], linewidth=3.0,
-                zorder=st['zorder'],
+                phi,
+                y,
+                yerr=err,
+                fmt="none",
+                ms=MS,
+                color=st["color"],
+                capsize=CAPSIZE,
+                capthick=1.6,
+                elinewidth=1.6,
+                linestyle=st["ls"],
+                linewidth=3.0,
+                zorder=st["zorder"],
             )
 
     if cms_phi is not None:
         cms_edges = _bin_edges(cms_phi)
-        ax.stairs(cms_y, cms_edges,
-                 color=CMS_STYLE['color'], linestyle=CMS_STYLE['ls'],
-                 linewidth=3.5, zorder=CMS_STYLE['zorder'], label='CMS Data',
-                 baseline=None)
+        ax.stairs(
+            cms_y,
+            cms_edges,
+            color=CMS_STYLE["color"],
+            linestyle=CMS_STYLE["ls"],
+            linewidth=3.5,
+            zorder=CMS_STYLE["zorder"],
+            label="CMS Data",
+            baseline=None,
+        )
 
-    ax.axhline(0, color='k', lw=2, ls='--', alpha=0.35)
+    ax.axhline(0, color="k", lw=2, ls="--", alpha=0.35)
 
     # ── momenta-range annotation (printed in every panel) ──────────────
     lines = [
-        f'{trig_lo:.1f} < $p_T^{{\\rm trig}}$ < {trig_hi:.1f} GeV/c\n'
-        f'{assoc_lo:.1f} < $p_T^{{\\rm assoc}}$ < {assoc_hi:.1f} GeV/c'
+        (
+            f"{trig_lo:.1f} < $p_T^{{\\rm trig}}$ < {trig_hi:.1f} GeV/c\n"
+            f"{assoc_lo:.1f} < $p_T^{{\\rm assoc}}$ < {assoc_hi:.1f} GeV/c"
+        )
     ]
     if extra_annotation:
         lines.append(extra_annotation)
     ax.text(
-        0.04, 0.95, '\n'.join(lines),
-        transform=ax.transAxes, ha='left', va='top',
+        0.04,
+        0.95,
+        "\n".join(lines),
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
         fontsize=20,
         zorder=10,
     )
 
     if show_legend:
-        ax.legend(fontsize=20, frameon=False, loc='center')
+        ax.legend(fontsize=20, frameon=False, loc="center")
     ax.grid(True, alpha=0.25, lw=0.6)
     ax.set_xlim(-0.05, np.pi + 0.05)
 
     # ticks point inward so they don't get clipped by the touching neighbor
-    ax.tick_params(axis='both', direction='in', top=True, right=True)
+    ax.tick_params(axis="both", direction="in", top=True, right=True)
 
     if show_ylabel:
         ax.set_ylabel(
-            r'$\frac{1}{N_{\rm trig}}\frac{dN_{\rm pair}}{d|\Delta\phi|}$',
-            fontsize=30
+            r"$\frac{1}{N_{\rm trig}}\frac{dN_{\rm pair}}{d|\Delta\phi|}$", fontsize=30
         )
-        ax.tick_params(axis='y', labelsize=20, labelleft=True)
+        ax.tick_params(axis="y", labelsize=20, labelleft=True)
     else:
-        ax.tick_params(axis='y', labelleft=False)
+        ax.tick_params(axis="y", labelleft=False)
 
     if show_xlabel:
-        ax.set_xlabel(r'$|\Delta\phi|$ [rad]', fontsize=20)
+        ax.set_xlabel(r"$|\Delta\phi|$ [rad]", fontsize=20)
         ax.set_xticks(phi_ticks)
         labels = list(phi_labels)
         if hide_zero_label:
-            labels[0] = ''
+            labels[0] = ""
         ax.set_xticklabels(labels, fontsize=22)
-        ax.tick_params(axis='x', labelbottom=True)
+        ax.tick_params(axis="x", labelbottom=True)
     else:
         ax.set_xticks(phi_ticks)
-        ax.tick_params(axis='x', labelbottom=False)
+        ax.tick_params(axis="x", labelbottom=False)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main plotting routine — one figure for all kinematic windows
 # ──────────────────────────────────────────────────────────────────────────────
-def plot_all_comparisons(all_data, pt_keys, cms_dir, save_dir,
-                         subdirs, style, show_ratio=True, max_cols=4):
+def plot_all_comparisons(
+    all_data, pt_keys, cms_dir, save_dir, subdirs, style, show_ratio=True, max_cols=4
+):
     """
     Build a single figure containing one panel per kinematic window
     (up to *max_cols* per row), all touching with no gaps. Panels in the
     same row share the y-axis (drawn once, leftmost column); panels in
     the same column share the x-axis (drawn once, bottom row).
     """
-    n     = len(pt_keys)
+    n = len(pt_keys)
     ncols = min(n, max_cols)
     nrows = math.ceil(n / ncols)
 
-    col_w  = 5.6
-    row_h  = 4.6
-    fig_w  = col_w * ncols
-    fig_h  = row_h * nrows
+    col_w = 5.6
+    row_h = 4.6
+    fig_w = col_w * ncols
+    fig_h = row_h * nrows
 
     fig = plt.figure(figsize=(fig_w, fig_h))
 
     # No spacing between panels — this is what makes them touch.
     outer_gs = GridSpec(
-        nrows, ncols,
+        nrows,
+        ncols,
         figure=fig,
         hspace=0.0,
         wspace=0.0,
@@ -363,23 +413,22 @@ def plot_all_comparisons(all_data, pt_keys, cms_dir, save_dir,
         pt_ranges = None
         for sd in subdirs:
             if pt_key in all_data.get(sd, {}):
-                pt_ranges = all_data[sd][pt_key]['pt_ranges']
+                pt_ranges = all_data[sd][pt_key]["pt_ranges"]
                 break
         if pt_ranges is None:
             print(f"  [skip] No data found for {pt_key}")
             continue
 
         trig_lo, trig_hi, assoc_lo, assoc_hi = pt_ranges
-        cms_phi, cms_y = load_cms_data(cms_dir, trig_lo, trig_hi,
-                                       assoc_lo, assoc_hi)
+        cms_phi, cms_y = load_cms_data(cms_dir, trig_lo, trig_hi, assoc_lo, assoc_hi)
 
         sharex = axes[0, gcol] if grow > 0 else None
         sharey = axes[grow, 0] if gcol > 0 else None
         ax = fig.add_subplot(outer_gs[grow, gcol], sharex=sharex, sharey=sharey)
         axes[grow, gcol] = ax
 
-        show_xlabel = (grow == nrows - 1)
-        show_ylabel = (gcol == 0)
+        show_xlabel = grow == nrows - 1
+        show_ylabel = gcol == 0
 
         extra_annotation = None
         if (grow, gcol) == DETA_PANEL:
@@ -387,12 +436,21 @@ def plot_all_comparisons(all_data, pt_keys, cms_dir, save_dir,
         elif (grow, gcol) == SQRT_S_PANEL:
             extra_annotation = SQRT_S_LABEL
 
-        _draw_top_panel(ax, all_data, pt_key, subdirs, style,
-                        cms_phi, cms_y, pt_ranges,
-                        show_xlabel=show_xlabel, show_ylabel=show_ylabel,
-                        extra_annotation=extra_annotation,
-                        hide_zero_label=(gcol > 0),
-                        show_legend=(grow == 0 and gcol == 0))
+        _draw_top_panel(
+            ax,
+            all_data,
+            pt_key,
+            subdirs,
+            style,
+            cms_phi,
+            cms_y,
+            pt_ranges,
+            show_xlabel=show_xlabel,
+            show_ylabel=show_ylabel,
+            extra_annotation=extra_annotation,
+            hide_zero_label=(gcol > 0),
+            show_legend=(grow == 0 and gcol == 0),
+        )
 
     # Apply the per-row y-axis maximum and fixed tick set. Panels in a row
     # share their y-axis, so setting this on any one panel in the row
@@ -412,8 +470,10 @@ def plot_all_comparisons(all_data, pt_keys, cms_dir, save_dir,
         fig.add_subplot(outer_gs[grow, gcol]).set_visible(False)
 
     os.makedirs(save_dir, exist_ok=True)
-    out_path = os.path.join(save_dir, f'dphi_comparison_trig{TRIG_PT_MIN}-{TRIG_PT_MAX}.pdf')
-    fig.savefig(out_path, dpi=200, bbox_inches='tight')
+    out_path = os.path.join(
+        save_dir, f"dphi_comparison_trig{TRIG_PT_MIN}-{TRIG_PT_MAX}.pdf"
+    )
+    fig.savefig(out_path, dpi=200, bbox_inches="tight")
     print(f"  Saved: {out_path}")
     plt.close(fig)
     return out_path
@@ -436,18 +496,18 @@ def main():
     print(f"Saving comparison plot to: {OUTPUT_DIR}\n")
 
     path = plot_all_comparisons(
-        all_data   = all_data,
-        pt_keys    = pt_keys,
-        cms_dir    = CMS_DIR,
-        save_dir   = OUTPUT_DIR,
-        subdirs    = SUBDIRS,
-        style      = STYLE,
-        show_ratio = SHOW_RATIO,
-        max_cols   = MAX_COLS,
+        all_data=all_data,
+        pt_keys=pt_keys,
+        cms_dir=CMS_DIR,
+        save_dir=OUTPUT_DIR,
+        subdirs=SUBDIRS,
+        style=STYLE,
+        show_ratio=SHOW_RATIO,
+        max_cols=MAX_COLS,
     )
 
     print(f"\nDone. Figure written to: {path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

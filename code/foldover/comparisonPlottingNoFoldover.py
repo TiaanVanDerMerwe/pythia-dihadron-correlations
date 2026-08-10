@@ -26,47 +26,63 @@ datathief/STAR(ALICE)_{trig_lo}-{trig_hi}_{assoc_lo}-{assoc_hi}.csv
     columns: DeltaPhi, d2Npair, stat +, stat -
 """
 
-import os
 import glob
+import os
 import re
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+from matplotlib import ticker
 from scipy.optimize import curve_fit
 
-plt.rcParams.update({
-    "font.family": "serif",
-    "mathtext.fontset": "cm",   # Computer-Modern-style math, matches LaTeX default
-})
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "mathtext.fontset": "cm",  # Computer-Modern-style math, matches LaTeX default
+    }
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
-BASE_DIR    = 'plots/correlations/star'
-EXP_DIR     = 'datathief'
-OUTPUT_DIR  = 'plots/comparisons/star'
-SUFFIX = ''
+BASE_DIR = "plots/correlations/star"
+EXP_DIR = "datathief"
+OUTPUT_DIR = "plots/comparisons/star"
+SUFFIX = ""
 
-SUBDIRS = [
-    'default' 
-]
+SUBDIRS = ["default"]
 
 SHOW_RATIO = False
-SHOW_FIT   = False   # set False to disable double-Gaussian fitting/overlay entirely
+SHOW_FIT = False  # set False to disable double-Gaussian fitting/overlay entirely
 
 # Colour and marker style per configuration (order matches SUBDIRS)
 STYLE = {
-    'default':      dict(label="PYTHIA Data",       color='#4453FF', marker='^', ls='-', lw=1.4, zorder = 5, fontsize = 15),
+    "default": {
+        "label": "PYTHIA Data",
+        "color": "#4453FF",
+        "marker": "^",
+        "ls": "-",
+        "lw": 1.4,
+        "zorder": 5,
+        "fontsize": 15,
+    },
 }
 
-EXP_STYLE = dict(color='black', marker='*', ms=8, ls='-',
-                 markerfacecolor='black', markeredgewidth=0.8,
-                 zorder=1, label='STAR Data', fontsize = 15)
+EXP_STYLE = {
+    "color": "black",
+    "marker": "*",
+    "ms": 8,
+    "ls": "-",
+    "markerfacecolor": "black",
+    "markeredgewidth": 0.8,
+    "zorder": 1,
+    "label": "STAR Data",
+    "fontsize": 15,
+}
 
-MS      = 4   # marker size for Pythia points
-CAPSIZE = 2   # error bar cap size
+MS = 4  # marker size for Pythia points
+CAPSIZE = 2  # error bar cap size
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -86,8 +102,8 @@ def double_gaussian(phi, A_near, sigma_near, A_away, sigma_away, C):
     C          : constant background / pedestal
     """
     return (
-        A_near * np.exp(-phi**2 / (2 * sigma_near**2))
-        + A_away * np.exp(-(phi - np.pi)**2 / (2 * sigma_away**2))
+        A_near * np.exp(-(phi**2) / (2 * sigma_near**2))
+        + A_away * np.exp(-((phi - np.pi) ** 2) / (2 * sigma_away**2))
         + C
     )
 
@@ -103,18 +119,18 @@ def fit_double_gaussian(phi, y, err=None):
     success : bool
     """
     # Initial guesses: peaks at local max near 0 and near π
-    y_near_idx  = np.argmin(np.abs(phi))
-    y_away_idx  = np.argmin(np.abs(phi - np.pi))
-    A_near_0    = max(y[y_near_idx] - np.min(y), 1e-6)
-    A_away_0    = max(y[y_away_idx] - np.min(y), 1e-6)
-    C_0         = np.min(y)
+    y_near_idx = np.argmin(np.abs(phi))
+    y_away_idx = np.argmin(np.abs(phi - np.pi))
+    A_near_0 = max(y[y_near_idx] - np.min(y), 1e-6)
+    A_away_0 = max(y[y_away_idx] - np.min(y), 1e-6)
+    C_0 = np.min(y)
 
     p0 = [A_near_0, 0.4, A_away_0, 0.6, C_0]
 
     # Bounds: amplitudes ≥ 0, widths ∈ (0.05, π), pedestal unconstrained
     bounds = (
-        [0,    0.05, 0,    0.05, -np.inf],
-        [np.inf, np.pi, np.inf, np.pi,  np.inf],
+        [0, 0.05, 0, 0.05, -np.inf],
+        [np.inf, np.pi, np.inf, np.pi, np.inf],
     )
 
     # Only use errors as weights if every bin has a finite, positive sigma.
@@ -129,14 +145,18 @@ def fit_double_gaussian(phi, y, err=None):
 
     try:
         popt, pcov = curve_fit(
-            double_gaussian, phi, y,
-            p0=p0, bounds=bounds, sigma=sigma_fit,
+            double_gaussian,
+            phi,
+            y,
+            p0=p0,
+            bounds=bounds,
+            sigma=sigma_fit,
             absolute_sigma=use_sigma,
             maxfev=10_000,
         )
         perr = np.sqrt(np.diag(pcov))
         return popt, perr, True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"    [fit failed] {exc}")
         return p0, np.full(len(p0), np.nan), False
 
@@ -146,32 +166,29 @@ def _format_fit_row(source_label, pt_key, popt, perr, success):
     A_near, sig_near, A_away, sig_away, C = popt
     dA_near, dsig_near, dA_away, dsig_away, dC = perr
     trig_lo, trig_hi, assoc_lo, assoc_hi = _pt_key_to_ranges(pt_key)
-    return dict(
-        source       = source_label,
-        pt_key       = pt_key,
-        trig_lo      = trig_lo,
-        trig_hi      = trig_hi,
-        assoc_lo     = assoc_lo,
-        assoc_hi     = assoc_hi,
-        fit_ok       = success,
-        A_near       = A_near,
-        A_near_err   = dA_near,
-        sigma_near   = sig_near,
-        sigma_near_err = dsig_near,
-        A_away       = A_away,
-        A_away_err   = dA_away,
-        sigma_away   = sig_away,
-        sigma_away_err = dsig_away,
-        pedestal     = C,
-        pedestal_err = dC,
-    )
+    return {
+        "source": source_label,
+        "pt_key": pt_key,
+        "trig_lo": trig_lo,
+        "trig_hi": trig_hi,
+        "assoc_lo": assoc_lo,
+        "assoc_hi": assoc_hi,
+        "fit_ok": success,
+        "A_near": A_near,
+        "A_near_err": dA_near,
+        "sigma_near": sig_near,
+        "sigma_near_err": dsig_near,
+        "A_away": A_away,
+        "A_away_err": dA_away,
+        "sigma_away": sig_away,
+        "sigma_away_err": dsig_away,
+        "pedestal": C,
+        "pedestal_err": dC,
+    }
 
 
 def _pt_key_to_ranges(pt_key):
-    m = re.match(
-        r'trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)',
-        pt_key
-    )
+    m = re.match(r"trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)", pt_key)
     if m:
         return tuple(float(x) for x in m.groups())
     return (np.nan,) * 4
@@ -182,8 +199,7 @@ def _pt_key_to_ranges(pt_key):
 # ──────────────────────────────────────────────────────────────────────────────
 def _parse_pt_ranges_from_filename(fname):
     m = re.search(
-        r'trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)',
-        os.path.basename(fname)
+        r"trig([\d.]+)-([\d.]+)_assoc([\d.]+)-([\d.]+)", os.path.basename(fname)
     )
     if m:
         return tuple(float(x) for x in m.groups())
@@ -191,13 +207,13 @@ def _parse_pt_ranges_from_filename(fname):
 
 
 def load_dphi_csvs(base_dir, subdirs):
-    all_data   = {}
+    all_data = {}
     all_ptkeys = set()
 
     for sd in subdirs:
-        path    = os.path.join(base_dir, sd)
-        pattern = os.path.join(path, 'dphi_projection_*.csv')
-        files   = sorted(glob.glob(pattern))
+        path = os.path.join(base_dir, sd)
+        pattern = os.path.join(path, "dphi_projection_*.csv")
+        files = sorted(glob.glob(pattern))
 
         if not files:
             print(f"  [warn] No dphi CSVs found in: {path}")
@@ -213,22 +229,28 @@ def load_dphi_csvs(base_dir, subdirs):
                 continue
 
             trig_lo, trig_hi, assoc_lo, assoc_hi = pt
-            pt_key = f'trig{trig_lo:.1f}-{trig_hi:.1f}_assoc{assoc_lo:.1f}-{assoc_hi:.1f}'
+            pt_key = (
+                f"trig{trig_lo:.1f}-{trig_hi:.1f}_assoc{assoc_lo:.1f}-{assoc_hi:.1f}"
+            )
 
-            df = pd.read_csv(fpath, comment='#')
-            bkg_col = df['zyam_background'].iloc[0] if 'zyam_background' in df.columns else 0.0
+            df = pd.read_csv(fpath, comment="#")
+            bkg_col = (
+                df["zyam_background"].iloc[0]
+                if "zyam_background" in df.columns
+                else 0.0
+            )
 
-            if 'stat_err_jackknife' in df.columns:
-                err = df['stat_err_jackknife'].fillna(0.0).values
+            if "stat_err_jackknife" in df.columns:
+                err = df["stat_err_jackknife"].fillna(0.0).values
             else:
                 err = np.zeros(len(df))
 
             all_data[sd][pt_key] = {
-                'phi':        df['delta_phi_rad'].values,
-                'central':    df['dNpair_dDeltaPhi'].values,
-                'err':        err,
-                'background': bkg_col,
-                'pt_ranges':  pt,
+                "phi": df["delta_phi_rad"].values,
+                "central": df["dNpair_dDeltaPhi"].values,
+                "err": err,
+                "background": bkg_col,
+                "pt_ranges": pt,
             }
             all_ptkeys.add(pt_key)
             print(f"  Loaded [{sd}] {pt_key}  ({len(df)} bins)")
@@ -237,26 +259,32 @@ def load_dphi_csvs(base_dir, subdirs):
 
 
 def load_exp_data(exp_dir, trig_lo, trig_hi, assoc_lo, assoc_hi):
-    stem = f'STAR_{trig_lo:.0f}-{trig_hi:.0f}_{assoc_lo:.0f}-{assoc_hi:.0f}'
-    for ext in ('.csv', '.txt'):
+    stem = f"STAR_{trig_lo:.0f}-{trig_hi:.0f}_{assoc_lo:.0f}-{assoc_hi:.0f}"
+    for ext in (".csv", ".txt"):
         fpath = os.path.join(exp_dir, stem + ext)
         if os.path.exists(fpath):
             try:
                 df = pd.read_csv(fpath)
-                phi       = df['DeltaPhi'].values
-                y         = df['d2Npair'].values
-                y_err_pos = df['stat +'].values if 'stat +' in df.columns else np.zeros(len(df))
-                y_err_neg = np.abs(df['stat -'].values) if 'stat -' in df.columns else np.zeros(len(df))
+                phi = df["DeltaPhi"].values
+                y = df["d2Npair"].values
+                y_err_pos = (
+                    df["stat +"].values if "stat +" in df.columns else np.zeros(len(df))
+                )
+                y_err_neg = (
+                    np.abs(df["stat -"].values)
+                    if "stat -" in df.columns
+                    else np.zeros(len(df))
+                )
                 idx = np.argsort(phi)
                 return phi[idx], y[idx], y_err_pos[idx], y_err_neg[idx]
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"  [warn] Could not read STAR/ALICE file {fpath}: {e}")
     return None, None, None, None
 
 
 def _phi_ticks():
-    ticks  = [-np.pi/2, 0, np.pi/2, np.pi, 3*np.pi/2]
-    labels = [r'$-\pi/2$', r'$0$', r'$\pi/2$', r'$\pi$', r'$3\pi/2$']
+    ticks = [-np.pi / 2, 0, np.pi / 2, np.pi, 3 * np.pi / 2]
+    labels = [r"$-\pi/2$", r"$0$", r"$\pi/2$", r"$\pi$", r"$3\pi/2$"]
     return ticks, labels
 
 
@@ -279,7 +307,7 @@ def print_fit_table(rows):
     print(hdr)
     print("-" * len(hdr))
     for r in rows:
-        ok_str = "✓" if r['fit_ok'] else "✗"
+        ok_str = "✓" if r["fit_ok"] else "✗"
         print(
             f"{r['source']:<22} {r['pt_key']:<42} {ok_str:>3}  "
             f"{r['A_near']:>10.4f} {r['A_near_err']:>7.4f}  "
@@ -294,14 +322,22 @@ def print_fit_table(rows):
 # ──────────────────────────────────────────────────────────────────────────────
 # Main plotting routine
 # ──────────────────────────────────────────────────────────────────────────────
-def plot_dphi_comparison(all_data, pt_key, exp_dir, save_dir,
-                         subdirs, style, show_ratio=True,
-                         fit_rows=None, show_fit=True):
+def plot_dphi_comparison(
+    all_data,
+    pt_key,
+    exp_dir,
+    save_dir,
+    subdirs,
+    style,
+    show_ratio=True,
+    fit_rows=None,
+    show_fit=True,
+):
 
     pt_ranges = None
     for sd in subdirs:
         if pt_key in all_data.get(sd, {}):
-            pt_ranges = all_data[sd][pt_key]['pt_ranges']
+            pt_ranges = all_data[sd][pt_key]["pt_ranges"]
             break
     if pt_ranges is None:
         print(f"  [skip] No data found for {pt_key}")
@@ -314,9 +350,10 @@ def plot_dphi_comparison(all_data, pt_key, exp_dir, save_dir,
 
     if show_ratio:
         fig, (ax_top, ax_bot) = plt.subplots(
-            2, 1,
+            2,
+            1,
             figsize=(8, 9),
-            gridspec_kw={'height_ratios': [3, 1.4], 'hspace': 0.08},
+            gridspec_kw={"height_ratios": [3, 1.4], "hspace": 0.08},
             sharex=True,
         )
     else:
@@ -333,18 +370,31 @@ def plot_dphi_comparison(all_data, pt_key, exp_dir, save_dir,
         if pt_key not in all_data.get(sd, {}):
             continue
         entry = all_data[sd][pt_key]
-        phi   = entry['phi']
-        y     = entry['central']
-        err   = entry['err']
-        st    = style[sd]
+        phi = entry["phi"]
+        y = entry["central"]
+        err = entry["err"]
+        st = style[sd]
 
-        ax_top.step(phi, y, where='mid', color=st['color'],
-                    linestyle="-", linewidth=2, label=st['label'])
+        ax_top.step(
+            phi,
+            y,
+            where="mid",
+            color=st["color"],
+            linestyle="-",
+            linewidth=2,
+            label=st["label"],
+        )
         if np.any(err > 0):
             ax_top.errorbar(
-                phi, y, yerr=err,
-                fmt="none", ms=MS, color=st['color'],
-                capsize=CAPSIZE, capthick=1.6, elinewidth=1.6,
+                phi,
+                y,
+                yerr=err,
+                fmt="none",
+                ms=MS,
+                color=st["color"],
+                capsize=CAPSIZE,
+                capthick=1.6,
+                elinewidth=1.6,
             )
 
         # Overlay fit curve
@@ -354,69 +404,97 @@ def plot_dphi_comparison(all_data, pt_key, exp_dir, save_dir,
             )
             if success:
                 ax_top.plot(
-                    phi_dense, double_gaussian(phi_dense, *popt),
-                    color=st['color'], ls='--', lw=1.2, alpha=0.8,
+                    phi_dense,
+                    double_gaussian(phi_dense, *popt),
+                    color=st["color"],
+                    ls="--",
+                    lw=1.2,
+                    alpha=0.8,
                 )
 
             # Collect fit row
             if fit_rows is not None:
-                label = style[sd]['label'] if sd in style else sd
+                label = style[sd]["label"] if sd in style else sd
                 fit_rows.append(_format_fit_row(label, pt_key, popt, perr, success))
 
     if exp_phi is not None:
-        ax_top.step(exp_phi, exp_y, where='mid',
-                    color=EXP_STYLE['color'], linestyle=EXP_STYLE['ls'],
-                    linewidth=2, zorder=EXP_STYLE['zorder'], label=EXP_STYLE['label'])
+        ax_top.step(
+            exp_phi,
+            exp_y,
+            where="mid",
+            color=EXP_STYLE["color"],
+            linestyle=EXP_STYLE["ls"],
+            linewidth=2,
+            zorder=EXP_STYLE["zorder"],
+            label=EXP_STYLE["label"],
+        )
         ax_top.errorbar(
-            exp_phi, exp_y,
+            exp_phi,
+            exp_y,
             yerr=[exp_y_err_neg, exp_y_err_pos],
-            fmt="none", ms=MS, color=EXP_STYLE['color'],
-            linewidth=2, capsize=CAPSIZE, capthick=1.6, elinewidth=1.6,
+            fmt="none",
+            ms=MS,
+            color=EXP_STYLE["color"],
+            linewidth=2,
+            capsize=CAPSIZE,
+            capthick=1.6,
+            elinewidth=1.6,
         )
 
         # Fit experimental data
         if show_fit:
             avg_err = (exp_y_err_pos + exp_y_err_neg) / 2.0
-            popt_e, perr_e, success_e = fit_double_gaussian(
-                exp_phi, exp_y, avg_err
-            )
+            popt_e, perr_e, success_e = fit_double_gaussian(exp_phi, exp_y, avg_err)
             if success_e:
                 ax_top.plot(
-                    phi_dense, double_gaussian(phi_dense, *popt_e),
-                    color=EXP_STYLE['color'], ls='--', lw=1.2, alpha=0.8,
+                    phi_dense,
+                    double_gaussian(phi_dense, *popt_e),
+                    color=EXP_STYLE["color"],
+                    ls="--",
+                    lw=1.2,
+                    alpha=0.8,
                 )
             if fit_rows is not None:
                 fit_rows.append(
-                    _format_fit_row('STAR data', pt_key, popt_e, perr_e, success_e)
+                    _format_fit_row("STAR data", pt_key, popt_e, perr_e, success_e)
                 )
 
-    ax_top.axhline(0, color='k', lw=0.6, ls='--', alpha=0.35)
+    ax_top.axhline(0, color="k", lw=0.6, ls="--", alpha=0.35)
     ax_top.set_ylabel(
-        r'$\frac{1}{N_{\rm trig}}\frac{dN_{\rm pair}}{d\Delta\phi}$',
-        fontsize=30
+        r"$\frac{1}{N_{\rm trig}}\frac{dN_{\rm pair}}{d\Delta\phi}$", fontsize=30
     )
 
     # Kinematic ranges as an in-axes label (paper style: no title)
     kin_label = (
-        f'{trig_lo:.1f} < $p_T^{{\\rm trig}}$ < {trig_hi:.1f} GeV/c\n'
-        f'{assoc_lo:.1f} < $p_T^{{\\rm assoc}}$ < $p_T^{{\\rm trig}}$\n'
-        r'$\sqrt{s}=200$ GeV' + '\n'
-        r'$|\Delta \eta| < 1.4$'
-
+        f"{trig_lo:.1f} < $p_T^{{\\rm trig}}$ < {trig_hi:.1f} GeV/c\n"
+        f"{assoc_lo:.1f} < $p_T^{{\\rm assoc}}$ < $p_T^{{\\rm trig}}$\n"
+        r"$\sqrt{s}=200$ GeV" + "\n"
+        r"$|\Delta \eta| < 1.4$"
     )
     ax_top.text(
-        0.97, 0.97, kin_label,
-        transform=ax_top.transAxes, ha='right', va='top', fontsize=20,
+        0.97,
+        0.97,
+        kin_label,
+        transform=ax_top.transAxes,
+        ha="right",
+        va="top",
+        fontsize=20,
         zorder=10,
     )
 
-    ax_top.legend(fontsize=18, frameon=False, loc='center', bbox_to_anchor=(0.49, 0.5), handlelength=1.2)
+    ax_top.legend(
+        fontsize=18,
+        frameon=False,
+        loc="center",
+        bbox_to_anchor=(0.49, 0.5),
+        handlelength=1.2,
+    )
     ax_top.grid(True, alpha=0.25, lw=0.6)
-    ax_top.set_xlim(17*np.pi/41 - 0.1, 65*np.pi/41 + 0.1)
-    ax_top.tick_params(axis='y', labelsize=20)
+    ax_top.set_xlim(17 * np.pi / 41 - 0.1, 65 * np.pi / 41 + 0.1)
+    ax_top.tick_params(axis="y", labelsize=20)
 
     if not show_ratio:
-        ax_top.set_xlabel(r'$\Delta\phi$ [rad]', fontsize=20)
+        ax_top.set_xlabel(r"$\Delta\phi$ [rad]", fontsize=20)
         ax_top.set_xticks(phi_ticks)
         ax_top.set_xticklabels(phi_labels, fontsize=22)
 
@@ -427,24 +505,24 @@ def plot_dphi_comparison(all_data, pt_key, exp_dir, save_dir,
                 if pt_key not in all_data.get(sd, {}):
                     continue
                 entry = all_data[sd][pt_key]
-                phi   = entry['phi']
-                y     = entry['central']
-                err   = entry['err']
-                st    = style[sd]
+                phi = entry["phi"]
+                y = entry["central"]
+                err = entry["err"]
+                st = style[sd]
 
-                exp_interp         = np.interp(phi, exp_phi, exp_y)
+                exp_interp = np.interp(phi, exp_phi, exp_y)
                 exp_err_pos_interp = np.interp(phi, exp_phi, exp_y_err_pos)
                 exp_err_neg_interp = np.interp(phi, exp_phi, exp_y_err_neg)
 
-                with np.errstate(invalid='ignore', divide='ignore'):
+                with np.errstate(invalid="ignore", divide="ignore"):
                     ratio = np.where(y != 0, exp_interp / y, np.nan)
-                    exp_rel    = np.where(
+                    exp_rel = np.where(
                         ratio >= 0,
                         exp_err_pos_interp / np.abs(exp_interp + 1e-30),
                         exp_err_neg_interp / np.abs(exp_interp + 1e-30),
                     )
                     pythia_rel = err / np.abs(y + 1e-30)
-                    ratio_err  = np.where(
+                    ratio_err = np.where(
                         np.isfinite(ratio),
                         np.abs(ratio) * np.sqrt(exp_rel**2 + pythia_rel**2),
                         np.nan,
@@ -453,40 +531,58 @@ def plot_dphi_comparison(all_data, pt_key, exp_dir, save_dir,
                 has_err = np.any(np.isfinite(ratio_err) & (ratio_err > 0))
                 if has_err:
                     ax_bot.errorbar(
-                        phi, ratio, yerr=ratio_err,
-                        fmt=st['marker'], ms=MS, color=st['color'],
-                        capsize=CAPSIZE, capthick=0.8, elinewidth=0.8,
-                        linestyle=st['ls'], linewidth=st['lw'],
+                        phi,
+                        ratio,
+                        yerr=ratio_err,
+                        fmt=st["marker"],
+                        ms=MS,
+                        color=st["color"],
+                        capsize=CAPSIZE,
+                        capthick=0.8,
+                        elinewidth=0.8,
+                        linestyle=st["ls"],
+                        linewidth=st["lw"],
                         label=sd,
                     )
                 else:
                     ax_bot.plot(
-                        phi, ratio,
-                        marker=st['marker'], ms=MS, color=st['color'],
-                        linestyle=st['ls'], linewidth=st['lw'],
+                        phi,
+                        ratio,
+                        marker=st["marker"],
+                        ms=MS,
+                        color=st["color"],
+                        linestyle=st["ls"],
+                        linewidth=st["lw"],
                         label=sd,
                     )
 
-            ax_bot.axhline(1.0, color='k', lw=1.0, ls='--', alpha=0.5)
-            ax_bot.set_ylabel(r'ALICE / Pythia', fontsize=11)
+            ax_bot.axhline(1.0, color="k", lw=1.0, ls="--", alpha=0.5)
+            ax_bot.set_ylabel(r"ALICE / Pythia", fontsize=11)
             ax_bot.set_ylim(0, 2)
             ax_bot.yaxis.set_minor_locator(ticker.MultipleLocator(0.25))
             ax_bot.grid(True, alpha=0.25, lw=0.6)
-            ax_bot.grid(True, which='minor', alpha=0.12, lw=0.4)
+            ax_bot.grid(True, which="minor", alpha=0.12, lw=0.4)
         else:
-            ax_bot.text(0.5, 0.5, 'ALICE data not available for this window',
-                        ha='center', va='center', transform=ax_bot.transAxes,
-                        fontsize=10, color='gray')
-            ax_bot.set_ylabel(r'ALICE / Pythia', fontsize=11)
+            ax_bot.text(
+                0.5,
+                0.5,
+                "ALICE data not available for this window",
+                ha="center",
+                va="center",
+                transform=ax_bot.transAxes,
+                fontsize=10,
+                color="gray",
+            )
+            ax_bot.set_ylabel(r"ALICE / Pythia", fontsize=11)
 
-        ax_bot.set_xlabel(r'$\Delta\phi$ [rad]', fontsize=12)
+        ax_bot.set_xlabel(r"$\Delta\phi$ [rad]", fontsize=12)
         ax_bot.set_xticks(phi_ticks)
         ax_bot.set_xticklabels(phi_labels, fontsize=11)
 
     fig.tight_layout(pad=0.4)
     os.makedirs(save_dir, exist_ok=True)
-    out_path = os.path.join(save_dir, f'dphi_comparison_{pt_key}_{SUFFIX}.pdf')
-    fig.savefig(out_path, dpi=200, bbox_inches='tight', pad_inches=0.03)
+    out_path = os.path.join(save_dir, f"dphi_comparison_{pt_key}_{SUFFIX}.pdf")
+    fig.savefig(out_path, dpi=200, bbox_inches="tight", pad_inches=0.03)
     print(f"  Saved: {out_path}")
     plt.close(fig)
     return out_path
@@ -508,21 +604,21 @@ def main():
     print(f"\nFound kinematic windows: {pt_keys}")
     print(f"Saving comparison plots to: {OUTPUT_DIR}\n")
 
-    fit_rows = []   # accumulate fit results across all windows
-    saved    = []
+    fit_rows = []  # accumulate fit results across all windows
+    saved = []
 
     for pt_key in pt_keys:
-        print(f"Plotting" + (" + fitting" if SHOW_FIT else "") + f": {pt_key}")
+        print("Plotting" + (" + fitting" if SHOW_FIT else "") + f": {pt_key}")
         path = plot_dphi_comparison(
-            all_data   = all_data,
-            pt_key     = pt_key,
-            exp_dir    = EXP_DIR,
-            save_dir   = OUTPUT_DIR,
-            subdirs    = SUBDIRS,
-            style      = STYLE,
-            show_ratio = SHOW_RATIO,
-            fit_rows   = fit_rows,
-            show_fit   = SHOW_FIT,
+            all_data=all_data,
+            pt_key=pt_key,
+            exp_dir=EXP_DIR,
+            save_dir=OUTPUT_DIR,
+            subdirs=SUBDIRS,
+            style=STYLE,
+            show_ratio=SHOW_RATIO,
+            fit_rows=fit_rows,
+            show_fit=SHOW_FIT,
         )
         if path:
             saved.append(path)
@@ -531,10 +627,10 @@ def main():
     if fit_rows:
         print_fit_table(fit_rows)
 
-        fit_df   = pd.DataFrame(fit_rows)
-        csv_path = os.path.join(OUTPUT_DIR, f'double_gaussian_fit_results_{SUFFIX}.csv')
+        fit_df = pd.DataFrame(fit_rows)
+        csv_path = os.path.join(OUTPUT_DIR, f"double_gaussian_fit_results_{SUFFIX}.csv")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        fit_df.to_csv(csv_path, index=False, float_format='%.6f')
+        fit_df.to_csv(csv_path, index=False, float_format="%.6f")
         print(f"Fit results CSV written to: {csv_path}")
     elif SHOW_FIT:
         print("[warn] No fit results collected.")
@@ -542,5 +638,5 @@ def main():
     print(f"\nDone. {len(saved)} figure(s) written.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -19,28 +19,30 @@ leaves one group out, recomputes the full (ZYAM-subtracted) projection,
 and the standard jackknife formula gives the standard error per bin.
 """
 
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter
-from matplotlib.gridspec import GridSpec
-import pandas as pd
 import glob
 import os
 
-plt.rcParams.update({
-    "font.family": "serif",
-    "mathtext.fontset": "cm",   # Computer-Modern-style math, matches LaTeX default
-})
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.gridspec import GridSpec
+
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "mathtext.fontset": "cm",  # Computer-Modern-style math, matches LaTeX default
+    }
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Analysis cuts — adjust these to match whatever kinematic window you want
 # ──────────────────────────────────────────────────────────────────────────────
-TRIG_PT_MIN  =  19.2  # GeV/c  (lower edge of trigger pT window)
-TRIG_PT_MAX  =  24.0  # GeV/c  (upper edge of trigger pT window)
-ASSOC_PT_MIN =  2.0     # GeV/c  (associated particle pT range)
-ASSOC_PT_MAX =  4.0     # GeV/c
-ETA_CUT      =  1.0     # only keep pairs with |Δη| < 1
+TRIG_PT_MIN = 19.2  # GeV/c  (lower edge of trigger pT window)
+TRIG_PT_MAX = 24.0  # GeV/c  (upper edge of trigger pT window)
+ASSOC_PT_MIN = 2.0  # GeV/c  (associated particle pT range)
+ASSOC_PT_MAX = 4.0  # GeV/c
+ETA_CUT = 1.0  # only keep pairs with |Δη| < 1
 
 # Number of blocks used for the block-jackknife uncertainty estimate.
 # More blocks → finer resolution but more CPU time.  50 is a good default.
@@ -74,15 +76,15 @@ def read_dihadron_data(filename):
     """
     metadata = {}
 
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         for line in f:
-            if not line.startswith('#'):
+            if not line.startswith("#"):
                 continue
-            if ':' not in line:
+            if ":" not in line:
                 continue
 
-            key, value = line[1:].split(':', 1)
-            key   = key.strip()
+            key, value = line[1:].split(":", 1)
+            key = key.strip()
             value = value.strip()
 
             try:
@@ -91,9 +93,9 @@ def read_dihadron_data(filename):
             except ValueError:
                 pass
 
-            if ' - ' in value:
+            if " - " in value:
                 try:
-                    lo, hi = value.split(' - ', 1)
+                    lo, hi = value.split(" - ", 1)
                     metadata[key] = [float(lo), float(hi)]
                     continue
                 except ValueError:
@@ -101,13 +103,18 @@ def read_dihadron_data(filename):
 
             metadata[key] = value
 
-    data = pd.read_csv(filename, comment='#')
+    data = pd.read_csv(filename, comment="#")
     return data, metadata
 
 
-def read_and_combine_bins(filenames, trig_pt_min=TRIG_PT_MIN, trig_pt_max=TRIG_PT_MAX,
-                          assoc_pt_min=ASSOC_PT_MIN, assoc_pt_max=ASSOC_PT_MAX,
-                          deta_max=ETA_CUT):
+def read_and_combine_bins(
+    filenames,
+    trig_pt_min=TRIG_PT_MIN,
+    trig_pt_max=TRIG_PT_MAX,
+    assoc_pt_min=ASSOC_PT_MIN,
+    assoc_pt_max=ASSOC_PT_MAX,
+    deta_max=ETA_CUT,
+):
     """
     Load every pTHat bin, rescale weights to physical units, and stack
     them into one big DataFrame.
@@ -126,9 +133,9 @@ def read_and_combine_bins(filenames, trig_pt_min=TRIG_PT_MIN, trig_pt_max=TRIG_P
     combined_data : pandas.DataFrame
     combined_metadata : dict
     """
-    frames      = []
-    bin_info    = []
-    total_ntrig  = 0.0
+    frames = []
+    bin_info = []
+    total_ntrig = 0.0
 
     if not filenames:
         raise ValueError("No input files provided.")
@@ -137,20 +144,29 @@ def read_and_combine_bins(filenames, trig_pt_min=TRIG_PT_MIN, trig_pt_max=TRIG_P
         print(f"  Loading bin {idx}: {os.path.basename(fname)}")
         data, meta = read_dihadron_data(fname)
 
-        trig_mask  = (data['trigger_pT'] > trig_pt_min) & (data['trigger_pT'] <= trig_pt_max)
-        assoc_mask = (data['assoc_pT']   > assoc_pt_min) & (data['assoc_pT']  <= assoc_pt_max)
-        deta_mask  = (data['assoc_eta'] - data['trigger_eta']).abs() < deta_max
+        trig_mask = (data["trigger_pT"] > trig_pt_min) & (
+            data["trigger_pT"] <= trig_pt_max
+        )
+        assoc_mask = (data["assoc_pT"] > assoc_pt_min) & (
+            data["assoc_pT"] <= assoc_pt_max
+        )
+        deta_mask = (data["assoc_eta"] - data["trigger_eta"]).abs() < deta_max
 
         data = data[trig_mask & assoc_mask & deta_mask].copy()
 
-        sigma           = meta.get('sigmaGEN', None)
-        weightSum       = meta.get('weightSum', None)
+        sigma = meta.get("sigmaGEN", None)
+        weightSum = meta.get("weightSum", None)
         trig_weight_sum = meta.get(
             f"triggerWeightSum_{trig_pt_min:e}to{trig_pt_max:e}", None
         )
 
-        if (sigma is None or weightSum is None or weightSum == 0
-                or trig_weight_sum is None or trig_weight_sum == 0):
+        if (
+            sigma is None
+            or weightSum is None
+            or weightSum == 0
+            or trig_weight_sum is None
+            or trig_weight_sum == 0
+        ):
             print(
                 f"File {fname} is missing 'sigmaGEN' or 'weightSum' or "
                 f"weightSum = 0 or 'trig_weight_sum' or trig_weight_sum = 0. "
@@ -160,42 +176,47 @@ def read_and_combine_bins(filenames, trig_pt_min=TRIG_PT_MIN, trig_pt_max=TRIG_P
 
         scale = sigma / weightSum
         trig_weight_sum_bin = trig_weight_sum * scale
-        print(f"    sigmaGEN={sigma:.6e}  weightSum={weightSum:.6e}  "
-              f"scale={scale:.6e}  pairs={len(data)}")
+        print(
+            f"    sigmaGEN={sigma:.6e}  weightSum={weightSum:.6e}  "
+            f"scale={scale:.6e}  pairs={len(data)}"
+        )
 
-        data['weight'] = data['weight'] * scale
-        data['bin_index'] = idx
+        data["weight"] = data["weight"] * scale
+        data["bin_index"] = idx
 
         frames.append(data)
-        bin_info.append({
-            'bin_index':        idx,
-            'filename':         fname,
-            'sigmaGEN':         sigma,
-            'weightSum':        weightSum,
-            'triggerWeightSum': trig_weight_sum,
-            'scale':            scale,
-            'n_pairs':          len(data),
-            'pthat_range':      meta.get('PTHAT_RANGE', 'unknown'),
-        })
+        bin_info.append(
+            {
+                "bin_index": idx,
+                "filename": fname,
+                "sigmaGEN": sigma,
+                "weightSum": weightSum,
+                "triggerWeightSum": trig_weight_sum,
+                "scale": scale,
+                "n_pairs": len(data),
+                "pthat_range": meta.get("PTHAT_RANGE", "unknown"),
+            }
+        )
 
-        total_ntrig  += trig_weight_sum_bin
+        total_ntrig += trig_weight_sum_bin
 
         combined_metadata = {}
-        combined_metadata['TRIG_PT_RANGE']   = meta.get('TRIG_PT_RANGE')
-        combined_metadata['TRIG_ETA_RANGE']  = meta.get('TRIG_ETA_RANGE')
-        combined_metadata['ASSOC_PT_RANGE']  = meta.get('ASSOC_PT_RANGE')
-        combined_metadata['ASSOC_ETA_RANGE'] = meta.get('ASSOC_ETA_RANGE')
+        combined_metadata["TRIG_PT_RANGE"] = meta.get("TRIG_PT_RANGE")
+        combined_metadata["TRIG_ETA_RANGE"] = meta.get("TRIG_ETA_RANGE")
+        combined_metadata["ASSOC_PT_RANGE"] = meta.get("ASSOC_PT_RANGE")
+        combined_metadata["ASSOC_ETA_RANGE"] = meta.get("ASSOC_ETA_RANGE")
 
     combined_data = pd.concat(frames, ignore_index=True)
 
-    combined_metadata['CUT_TRIG_PT_RANGE']  = [trig_pt_min,  trig_pt_max]
-    combined_metadata['CUT_ASSOC_PT_RANGE'] = [assoc_pt_min, assoc_pt_max]
-    combined_metadata['N_TRIG']           = total_ntrig
-    combined_metadata['N_BINS']          = len(filenames)
-    combined_metadata['BIN_INFO']        = bin_info
+    combined_metadata["CUT_TRIG_PT_RANGE"] = [trig_pt_min, trig_pt_max]
+    combined_metadata["CUT_ASSOC_PT_RANGE"] = [assoc_pt_min, assoc_pt_max]
+    combined_metadata["N_TRIG"] = total_ntrig
+    combined_metadata["N_BINS"] = len(filenames)
+    combined_metadata["BIN_INFO"] = bin_info
 
     print(f"\n  Combined: {len(filenames)} bins, {len(combined_data):,} total pairs")
     return combined_data, combined_metadata
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Analysis helpers
@@ -206,6 +227,7 @@ def calculate_delta_phi(phi1, phi2):
     """
     dphi = phi2 - phi1
     return np.arctan2(np.sin(dphi), np.cos(dphi))
+
 
 def _fold_phi(phi_projection, phi_centers):
     """
@@ -230,12 +252,10 @@ def _fold_phi(phi_projection, phi_centers):
 
     phi_proj_folded = np.empty(h + 1)
     phi_proj_folded[0] = 1 * phi_projection[h]
-    phi_proj_folded[1:] = 0.5 * (
-        phi_projection[h + 1:] +
-        phi_projection[:h][::-1]
-    )
+    phi_proj_folded[1:] = 0.5 * (phi_projection[h + 1 :] + phi_projection[:h][::-1])
     phi_centers_folded = phi_centers[h:]
     return phi_proj_folded, phi_centers_folded
+
 
 def _find_zyam_level(phi_proj_folded, phi_centers_folded, zyam_range):
     """
@@ -255,8 +275,9 @@ def _find_zyam_level(phi_proj_folded, phi_centers_folded, zyam_range):
     -------
     background_level : float
     """
-    phi_mask = ((phi_centers_folded >= zyam_range['phi'][0]) &
-                (phi_centers_folded <= zyam_range['phi'][1]))
+    phi_mask = (phi_centers_folded >= zyam_range["phi"][0]) & (
+        phi_centers_folded <= zyam_range["phi"][1]
+    )
     masked = np.where(phi_mask, phi_proj_folded, np.inf)
     return float(np.min(masked))
 
@@ -284,13 +305,17 @@ def _apply_zyam_to_folded(phi_proj_folded, phi_centers_folded, zyam_range):
     return phi_proj_folded - background_level, background_level
 
 
-def compute_dihadron_correlation(data, metadata,
-                                 eta_bins=33, phi_bins=33,
-                                 eta_range=(-1, 1),
-                                 phi_range=(-np.pi/2, 3*np.pi/2),
-                                 zyam=True,
-                                 zyam_range={'phi': (0.5, 1.5)},
-                                 ntrig_override=None):
+def compute_dihadron_correlation(
+    data,
+    metadata,
+    eta_bins=33,
+    phi_bins=33,
+    eta_range=(-1, 1),
+    phi_range=(-np.pi / 2, 3 * np.pi / 2),
+    zyam=True,
+    zyam_range=None,
+    ntrig_override=None,
+):
     """
     Build the per-trigger-normalised 2D correlation:
 
@@ -338,29 +363,32 @@ def compute_dihadron_correlation(data, metadata,
     weighted_counts  : 2D array
     """
 
-    deta    = data['assoc_eta'].values   - data['trigger_eta'].values
-    dphi    = calculate_delta_phi(data['trigger_phi'].values,
-                                  data['assoc_phi'].values)
-    weights = data['weight'].values
+    if zyam_range is None:
+        zyam_range = {"phi": (0.5, 1.5)}
+    deta = data["assoc_eta"].values - data["trigger_eta"].values
+    dphi = calculate_delta_phi(data["trigger_phi"].values, data["assoc_phi"].values)
+    weights = data["weight"].values
 
     if ntrig_override is not None:
         ntrig = ntrig_override
     else:
-        group_cols = ['event', 'trigger_id']
-        if 'bin_index' in data.columns:
-            group_cols = ['bin_index'] + group_cols
+        group_cols = ["event", "trigger_id"]
+        if "bin_index" in data.columns:
+            group_cols = ["bin_index"] + group_cols
         trigger_data = data.groupby(group_cols).first()
-        ntrig = trigger_data['weight'].sum()
+        ntrig = trigger_data["weight"].sum()
 
     hist, eta_edges, phi_edges = np.histogram2d(
-        deta, dphi,
+        deta,
+        dphi,
         bins=[eta_bins, phi_bins],
         range=[eta_range, phi_range],
         weights=weights,
     )
 
     raw_hist, _, _ = np.histogram2d(
-        deta, dphi,
+        deta,
+        dphi,
         bins=[eta_bins, phi_bins],
         range=[eta_range, phi_range],
     )
@@ -376,15 +404,21 @@ def compute_dihadron_correlation(data, metadata,
 
     # Always compute the ZYAM level: project → fold → find minimum.
     # background_level is valid for display even when zyam=False.
-    dphi_distribution              = np.mean(correlation, axis=0)
+    dphi_distribution = np.mean(correlation, axis=0)
     phi_proj_folded, phi_centers_f = _fold_phi(dphi_distribution, phi_centers)
-    background_level               = _find_zyam_level(phi_proj_folded, phi_centers_f,
-                                                       zyam_range)
+    background_level = _find_zyam_level(phi_proj_folded, phi_centers_f, zyam_range)
     if zyam:
         correlation = correlation - background_level
 
-    return (correlation, eta_centers, phi_centers, ntrig,
-            background_level, raw_hist, hist)
+    return (
+        correlation,
+        eta_centers,
+        phi_centers,
+        ntrig,
+        background_level,
+        raw_hist,
+        hist,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -394,45 +428,49 @@ def _ntrig_removed_by_block(block_data, trig_cols):
     """
     Sum the rescaled weights of the unique triggers present in
     ``block_data``.
- 
+
     We deduplicate on ``trig_cols`` (e.g. [bin_index, event, trigger_id])
     and sum the 'weight' column of the first occurrence of each trigger.
- 
+
     This is the correct partial-Ntrig correction for a jackknife block:
     the pair CSV records only triggers that had at least one associate, so
     triggers with zero associates are absent from the DataFrame entirely
     and will never appear in any block.  The missing triggers therefore
     contribute the same (unknown) amount to every jackknife sample and
     cancel out of all differences — they do not need to be tracked.
- 
+
     Parameters
     ----------
     block_data : pandas.DataFrame  — rows belonging to the removed block
     trig_cols  : list of str       — columns that uniquely identify a trigger
                                      within the full dataset
- 
+
     Returns
     -------
     float  — sum of rescaled trigger weights for the removed block
     """
-    return block_data.groupby(trig_cols)['weight'].first().sum()
+    return block_data.groupby(trig_cols)["weight"].first().sum()
 
 
-def compute_phi_projection_jackknife(data, metadata,
-                                     eta_bins=33, phi_bins=33,
-                                     eta_range=(-1, 1),
-                                     phi_range=(-np.pi, np.pi),
-                                     zyam=True,
-                                     zyam_range={'phi': (0, np.pi)},
-                                     ntrig_override=None,
-                                     n_blocks=N_JACKKNIFE_BLOCKS):
+def compute_phi_projection_jackknife(
+    data,
+    metadata,
+    eta_bins=33,
+    phi_bins=33,
+    eta_range=(-1, 1),
+    phi_range=(-np.pi, np.pi),
+    zyam=True,
+    zyam_range=None,
+    ntrig_override=None,
+    n_blocks=N_JACKKNIFE_BLOCKS,
+):
     """
     Estimate statistical uncertainties on the folded Δφ projection using
     a block-jackknife resampling scheme.
- 
+
     Events are partitioned into ``n_blocks`` contiguous blocks.  For each
     block k we:
- 
+
         1.  Remove all pairs that belong to block k from the DataFrame.
         2.  Subtract the trigger weights of the removed block from
             ntrig_override to obtain ntrig_k (see note below).
@@ -443,14 +481,14 @@ def compute_phi_projection_jackknife(data, metadata,
             into the error bars automatically.
             If zyam=False, the ZYAM level is still computed and returned
             for display purposes, but no subtraction is performed.
- 
+
     The standard jackknife variance formula for N blocks is:
- 
+
         Var_JK[θ] = (N-1)/N × Σ_k (θ_k − θ̄_JK)²
- 
+
     where θ_k is the estimate from the k-th leave-one-out sample and
     θ̄_JK is the mean of all jackknife estimates.
- 
+
     Note on Ntrig
     -------------
     The pair CSV only records triggers that have at least one associated
@@ -459,7 +497,7 @@ def compute_phi_projection_jackknife(data, metadata,
     the pair DataFrame from scratch — the authoritative value is the
     triggerWeightSum accumulated by read_and_combine_bins and stored in
     ntrig_override.
- 
+
     However, Ntrig *should* change between jackknife samples: removing
     block k removes real triggers from the denominator.  We handle this
     correctly by subtracting only the trigger weights that ARE visible in
@@ -467,7 +505,7 @@ def compute_phi_projection_jackknife(data, metadata,
     file (zero associates) are absent from every block equally, so they
     cancel out of all jackknife differences and do not bias the variance
     estimate.
- 
+
     Parameters
     ----------
     data            : pandas.DataFrame  (must contain a 'weight' column)
@@ -489,7 +527,7 @@ def compute_phi_projection_jackknife(data, metadata,
     n_blocks        : int
         Number of jackknife blocks.  More blocks → higher resolution but
         O(n_blocks) calls to compute_dihadron_correlation.
- 
+
     Returns
     -------
     phi_proj_central   : 1D array  — folded projection (ZYAM-subtracted if zyam=True)
@@ -500,6 +538,8 @@ def compute_phi_projection_jackknife(data, metadata,
                                      always set regardless of zyam flag
     """
 
+    if zyam_range is None:
+        zyam_range = {"phi": (0, np.pi)}
     if ntrig_override is None:
         raise ValueError(
             "ntrig_override is required for the jackknife.  "
@@ -507,16 +547,21 @@ def compute_phi_projection_jackknife(data, metadata,
         )
 
     # columns that uniquely identify a single trigger particle
-    trig_cols = (['bin_index', 'event', 'trigger_id']
-                 if 'bin_index' in data.columns
-                 else ['event', 'trigger_id'])
+    trig_cols = (
+        ["bin_index", "event", "trigger_id"]
+        if "bin_index" in data.columns
+        else ["event", "trigger_id"]
+    )
 
     # ── central value ────────────────────────────────────────────────────────
     # Always use zyam=False here; ZYAM is applied after projection + fold.
     corr_full, eta_centers, phi_centers, ntrig, _, _, _ = compute_dihadron_correlation(
-        data, metadata,
-        eta_bins=eta_bins, phi_bins=phi_bins,
-        eta_range=eta_range, phi_range=phi_range,
+        data,
+        metadata,
+        eta_bins=eta_bins,
+        phi_bins=phi_bins,
+        eta_range=eta_range,
+        phi_range=phi_range,
         zyam=False,
         ntrig_override=ntrig_override,
     )
@@ -524,7 +569,7 @@ def compute_phi_projection_jackknife(data, metadata,
     eta_mask = np.abs(eta_centers) < ETA_CUT
 
     # project → fold
-    phi_proj_full                      = np.mean(corr_full[eta_mask, :], axis=0)
+    phi_proj_full = np.mean(corr_full[eta_mask, :], axis=0)
     phi_proj_folded, phi_centers_folded = _fold_phi(phi_proj_full, phi_centers)
 
     # always compute the ZYAM level; subtract only if requested
@@ -532,45 +577,50 @@ def compute_phi_projection_jackknife(data, metadata,
     phi_proj_central = (phi_proj_folded - background_level) if zyam else phi_proj_folded
 
     # ── assign block labels to every pair ───────────────────────────────────
-    event_cols = ['bin_index', 'event'] if 'bin_index' in data.columns else ['event']
+    event_cols = ["bin_index", "event"] if "bin_index" in data.columns else ["event"]
     unique_events = data[event_cols].drop_duplicates().reset_index(drop=True)
     n_events = len(unique_events)
 
     if n_blocks > n_events:
-        print(f"  Warning: n_blocks ({n_blocks}) > n_events ({n_events}). "
-              f"Falling back to leave-one-event-out jackknife.")
+        print(
+            f"  Warning: n_blocks ({n_blocks}) > n_events ({n_events}). "
+            f"Falling back to leave-one-event-out jackknife."
+        )
         n_blocks = n_events
 
     # round-robin assignment keeps the pT-hat composition of each block
     # roughly uniform, which stabilises the jackknife variance estimate
     unique_events = unique_events.copy()
-    unique_events['_jk_block'] = np.arange(n_events) % n_blocks
+    unique_events["_jk_block"] = np.arange(n_events) % n_blocks
 
-    data_jk = data.merge(unique_events, on=event_cols, how='left')
+    data_jk = data.merge(unique_events, on=event_cols, how="left")
 
     # ── jackknife loop ───────────────────────────────────────────────────────
     print(f"\nRunning block jackknife ({n_blocks} blocks) …")
     jackknife_projs = np.empty((n_blocks, len(phi_proj_central)))
 
     for k in range(n_blocks):
-        removed  = data_jk[data_jk['_jk_block'] == k]
-        data_k   = data_jk[data_jk['_jk_block'] != k].copy()
+        removed = data_jk[data_jk["_jk_block"] == k]
+        data_k = data_jk[data_jk["_jk_block"] != k].copy()
 
         ntrig_k = ntrig_override - _ntrig_removed_by_block(removed, trig_cols)
 
         corr_k, _, _, _, _, _, _ = compute_dihadron_correlation(
-            data_k, metadata,
-            eta_bins=eta_bins, phi_bins=phi_bins,
-            eta_range=eta_range, phi_range=phi_range,
+            data_k,
+            metadata,
+            eta_bins=eta_bins,
+            phi_bins=phi_bins,
+            eta_range=eta_range,
+            phi_range=phi_range,
             zyam=False,
             ntrig_override=ntrig_k,
         )
 
         # project → fold → (conditionally) subtract
-        phi_proj_k               = np.mean(corr_k[eta_mask, :], axis=0)
-        phi_proj_k_folded, _     = _fold_phi(phi_proj_k, phi_centers)
+        phi_proj_k = np.mean(corr_k[eta_mask, :], axis=0)
+        phi_proj_k_folded, _ = _fold_phi(phi_proj_k, phi_centers)
         if zyam:
-            phi_proj_k_final, _  = _apply_zyam_to_folded(
+            phi_proj_k_final, _ = _apply_zyam_to_folded(
                 phi_proj_k_folded, phi_centers_folded, zyam_range
             )
         else:
@@ -579,52 +629,69 @@ def compute_phi_projection_jackknife(data, metadata,
         jackknife_projs[k] = phi_proj_k_final
 
         if (k + 1) % max(1, n_blocks // 10) == 0:
-            print(f"  Block {k+1}/{n_blocks} done")
+            print(f"  Block {k + 1}/{n_blocks} done")
 
     # ── standard jackknife variance ──────────────────────────────────────────
     # Var_JK = (N-1)/N * Σ_k (θ_k - θ̄_JK)²
-    jk_mean      = np.mean(jackknife_projs, axis=0)
-    jk_var       = ((n_blocks - 1) / n_blocks
-                    * np.sum((jackknife_projs - jk_mean) ** 2, axis=0))
+    jk_mean = np.mean(jackknife_projs, axis=0)
+    jk_var = (
+        (n_blocks - 1) / n_blocks * np.sum((jackknife_projs - jk_mean) ** 2, axis=0)
+    )
     phi_proj_err = np.sqrt(jk_var)
 
-    print(f"  Jackknife done.  Max error: {phi_proj_err.max():.4e}  "
-          f"Median error: {np.median(phi_proj_err):.4e}  "
-          f"Mean error: {np.mean(phi_proj_err):.4e}  "
-          f"First bin (Δφ≈0) error: {phi_proj_err[0]:.4e}  "
-          f"Last bin (Δφ≈π) error: {phi_proj_err[-1]:.4e}")
+    print(
+        f"  Jackknife done.  Max error: {phi_proj_err.max():.4e}  "
+        f"Median error: {np.median(phi_proj_err):.4e}  "
+        f"Mean error: {np.mean(phi_proj_err):.4e}  "
+        f"First bin (Δφ≈0) error: {phi_proj_err[0]:.4e}  "
+        f"Last bin (Δφ≈π) error: {phi_proj_err[-1]:.4e}"
+    )
 
     rel_err = phi_proj_err / np.abs(phi_proj_central)
-    print(f"Max relative error: {rel_err.max():.2%}  "
-          f"Median relative error: {np.median(rel_err):.2%}  "
-          f"Mean relative error: {np.mean(rel_err):.2%}  "
-          f"First bin (Δφ≈0) relative error: {rel_err[0]:.2%}  "
-          f"Last bin (Δφ≈π) relative error: {rel_err[-1]:.2%}")
+    print(
+        f"Max relative error: {rel_err.max():.2%}  "
+        f"Median relative error: {np.median(rel_err):.2%}  "
+        f"Mean relative error: {np.mean(rel_err):.2%}  "
+        f"First bin (Δφ≈0) relative error: {rel_err[0]:.2%}  "
+        f"Last bin (Δφ≈π) relative error: {rel_err[-1]:.2%}"
+    )
 
     delta_phi = phi_centers_folded[1] - phi_centers_folded[0]
 
-    yield_k       = jackknife_projs.sum(axis=1) * delta_phi
+    yield_k = jackknife_projs.sum(axis=1) * delta_phi
     yield_central = phi_proj_central.sum() * delta_phi
 
     yield_jk_mean = yield_k.mean()
-    yield_jk_var  = ((n_blocks - 1) / n_blocks
-                     * np.sum((yield_k - yield_jk_mean) ** 2))
+    yield_jk_var = (n_blocks - 1) / n_blocks * np.sum((yield_k - yield_jk_mean) ** 2)
     yield_err = np.sqrt(yield_jk_var)
 
-    print(f"\nIntegrated yield:  {yield_central:.4e} ± {yield_err:.4e}  "
-          f"(rel. err: {yield_err / abs(yield_central):.2%})")
+    print(
+        f"\nIntegrated yield:  {yield_central:.4e} ± {yield_err:.4e}  "
+        f"(rel. err: {yield_err / abs(yield_central):.2%})"
+    )
 
-    return phi_proj_central, phi_proj_err, phi_centers_folded, ntrig, background_level, jackknife_projs
+    return (
+        phi_proj_central,
+        phi_proj_err,
+        phi_centers_folded,
+        ntrig,
+        background_level,
+        jackknife_projs,
+    )
 
 
-def run_jackknife_multiple_blocks(data, metadata,
-                                 block_sizes,
-                                 eta_bins=33, phi_bins=33,
-                                 eta_range=(-1, 1),
-                                 phi_range=(-np.pi, np.pi),
-                                 zyam=True,
-                                 zyam_range=None,
-                                 ntrig_override=None):
+def run_jackknife_multiple_blocks(
+    data,
+    metadata,
+    block_sizes,
+    eta_bins=33,
+    phi_bins=33,
+    eta_range=(-1, 1),
+    phi_range=(-np.pi, np.pi),
+    zyam=True,
+    zyam_range=None,
+    ntrig_override=None,
+):
     """
     Run the jackknife multiple times with different block sizes.
 
@@ -647,12 +714,16 @@ def run_jackknife_multiple_blocks(data, metadata,
     for n_blocks in block_sizes:
         print(f"\n=== Running jackknife with {n_blocks} blocks ===")
 
-        (phi_proj_central,
-         phi_proj_err,
-         phi_centers_folded,
-         ntrig,
-         bkg, jackknife_projs) = compute_phi_projection_jackknife(
-            data, metadata,
+        (
+            phi_proj_central,
+            phi_proj_err,
+            phi_centers_folded,
+            ntrig,
+            bkg,
+            jackknife_projs,
+        ) = compute_phi_projection_jackknife(
+            data,
+            metadata,
             eta_bins=eta_bins,
             phi_bins=phi_bins,
             eta_range=eta_range,
@@ -664,12 +735,12 @@ def run_jackknife_multiple_blocks(data, metadata,
         )
 
         results[n_blocks] = {
-            'phi_proj_central': phi_proj_central,
-            'phi_proj_err': phi_proj_err,
-            'phi_centers': phi_centers_folded,
-            'ntrig': ntrig,
-            'background': bkg,
-            'jackknife_projs': jackknife_projs
+            "phi_proj_central": phi_proj_central,
+            "phi_proj_err": phi_proj_err,
+            "phi_centers": phi_centers_folded,
+            "ntrig": ntrig,
+            "background": bkg,
+            "jackknife_projs": jackknife_projs,
         }
 
     return results
@@ -679,11 +750,16 @@ def run_jackknife_multiple_blocks(data, metadata,
 # CSV export
 # ──────────────────────────────────────────────────────────────────────────────
 def save_projections_to_csv(
-    phi_proj_central, phi_proj_err, phi_centers_folded,
-    correlation, eta_centers, phi_centers,
-    background_level, metadata,
-    save_dir='plots/Correlations',
-    tag='',
+    phi_proj_central,
+    phi_proj_err,
+    phi_centers_folded,
+    correlation,
+    eta_centers,
+    phi_centers,
+    background_level,
+    metadata,
+    save_dir="plots/Correlations",
+    tag="",
 ):
     """
     Write the Δφ and Δη projections to separate CSV files.
@@ -720,70 +796,78 @@ def save_projections_to_csv(
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    trig_lo, trig_hi   = metadata.get('CUT_TRIG_PT_RANGE',  [TRIG_PT_MIN,  TRIG_PT_MAX])
-    assoc_lo, assoc_hi = metadata.get('CUT_ASSOC_PT_RANGE', [ASSOC_PT_MIN, ASSOC_PT_MAX])
+    trig_lo, trig_hi = metadata.get("CUT_TRIG_PT_RANGE", [TRIG_PT_MIN, TRIG_PT_MAX])
+    assoc_lo, assoc_hi = metadata.get(
+        "CUT_ASSOC_PT_RANGE", [ASSOC_PT_MIN, ASSOC_PT_MAX]
+    )
 
-    base = f'trig{trig_lo:.1f}-{trig_hi:.1f}_assoc{assoc_lo:.1f}-{assoc_hi:.1f}'
+    base = f"trig{trig_lo:.1f}-{trig_hi:.1f}_assoc{assoc_lo:.1f}-{assoc_hi:.1f}"
     if tag:
-        base = f'{base}_{tag}'
+        base = f"{base}_{tag}"
 
     # ── Δφ projection ─────────────────────────────────────────────────────────
-    dphi_df = pd.DataFrame({
-        'delta_phi_rad':      phi_centers_folded,
-        'dNpair_dDeltaPhi':   phi_proj_central,
-        'stat_err_jackknife': (phi_proj_err
-                               if phi_proj_err is not None
-                               else np.zeros_like(phi_proj_central)),
-        'zyam_background':    background_level,
-    })
+    dphi_df = pd.DataFrame(
+        {
+            "delta_phi_rad": phi_centers_folded,
+            "dNpair_dDeltaPhi": phi_proj_central,
+            "stat_err_jackknife": (
+                phi_proj_err
+                if phi_proj_err is not None
+                else np.zeros_like(phi_proj_central)
+            ),
+            "zyam_background": background_level,
+        }
+    )
 
-    dphi_path = os.path.join(save_dir, f'dphi_projection_{base}.csv')
+    dphi_path = os.path.join(save_dir, f"dphi_projection_{base}.csv")
     header_lines = [
-        f'# Dihadron Δφ projection',
-        f'# trigger pT : {trig_lo:.1f} – {trig_hi:.1f} GeV/c',
-        f'# assoc   pT : {assoc_lo:.1f} – {assoc_hi:.1f} GeV/c',
-        f'# |Δη| cut   : {ETA_CUT}',
-        f'# ZYAM level : {background_level:.6e}',
-        f'# ntrig      : {metadata.get("NTRIG", float("nan")):.6e}',
-        f'# n_bins     : {metadata.get("n_bins", "?")}',
-        f'# jackknife blocks : {metadata.get("jackknife_n_blocks", "not run")}',
-        f'#',
-        f'# delta_phi_rad   : folded bin centre in [0, π] (rad)',
-        f'# dNpair_dDeltaPhi: 1/Ntrig × dNpair/dΔφ  (ZYAM-subtracted)',
-        f'# stat_err_jackknife: jackknife standard error',
-        f'# zyam_background : constant subtracted from every bin',
+        "# Dihadron Δφ projection",
+        f"# trigger pT : {trig_lo:.1f} – {trig_hi:.1f} GeV/c",
+        f"# assoc   pT : {assoc_lo:.1f} – {assoc_hi:.1f} GeV/c",
+        f"# |Δη| cut   : {ETA_CUT}",
+        f"# ZYAM level : {background_level:.6e}",
+        f"# ntrig      : {metadata.get('NTRIG', float('nan')):.6e}",
+        f"# n_bins     : {metadata.get('n_bins', '?')}",
+        f"# jackknife blocks : {metadata.get('jackknife_n_blocks', 'not run')}",
+        "#",
+        "# delta_phi_rad   : folded bin centre in [0, π] (rad)",
+        "# dNpair_dDeltaPhi: 1/Ntrig × dNpair/dΔφ  (ZYAM-subtracted)",
+        "# stat_err_jackknife: jackknife standard error",
+        "# zyam_background : constant subtracted from every bin",
     ]
 
-    with open(dphi_path, 'w') as f:
-        f.write('\n'.join(header_lines) + '\n')
+    with open(dphi_path, "w") as f:
+        f.write("\n".join(header_lines) + "\n")
         dphi_df.to_csv(f, index=False)
 
     print(f"Δφ projection saved → {dphi_path}  ({len(dphi_df)} bins)")
 
     # ── Δη projection ─────────────────────────────────────────────────────────
-    eta_proj_raw = np.mean(correlation, axis=1)           # average over all Δφ
+    eta_proj_raw = np.mean(correlation, axis=1)  # average over all Δφ
     eta_proj_folded, eta_centers_folded = _fold_phi(eta_proj_raw, eta_centers)
 
-    deta_df = pd.DataFrame({
-        'delta_eta':          eta_centers_folded,
-        'dNpair_dDeltaEta':   eta_proj_folded,
-    })
+    deta_df = pd.DataFrame(
+        {
+            "delta_eta": eta_centers_folded,
+            "dNpair_dDeltaEta": eta_proj_folded,
+        }
+    )
 
-    deta_path = os.path.join(save_dir, f'deta_projection_{base}.csv')
+    deta_path = os.path.join(save_dir, f"deta_projection_{base}.csv")
     deta_header = [
-        f'# Dihadron Δη projection',
-        f'# trigger pT : {trig_lo:.1f} – {trig_hi:.1f} GeV/c',
-        f'# assoc   pT : {assoc_lo:.1f} – {assoc_hi:.1f} GeV/c',
-        f'# averaged over all Δφ bins',
-        f'# ZYAM subtraction applied to the underlying 2D correlation: yes',
-        f'# ntrig      : {metadata.get("NTRIG", float("nan")):.6e}',
-        f'#',
-        f'# delta_eta        : folded bin centre in [0, |Δη|_max]',
-        f'# dNpair_dDeltaEta : 1/Ntrig × dNpair/dΔη',
+        "# Dihadron Δη projection",
+        f"# trigger pT : {trig_lo:.1f} – {trig_hi:.1f} GeV/c",
+        f"# assoc   pT : {assoc_lo:.1f} – {assoc_hi:.1f} GeV/c",
+        "# averaged over all Δφ bins",
+        "# ZYAM subtraction applied to the underlying 2D correlation: yes",
+        f"# ntrig      : {metadata.get('NTRIG', float('nan')):.6e}",
+        "#",
+        "# delta_eta        : folded bin centre in [0, |Δη|_max]",
+        "# dNpair_dDeltaEta : 1/Ntrig × dNpair/dΔη",
     ]
 
-    with open(deta_path, 'w') as f:
-        f.write('\n'.join(deta_header) + '\n')
+    with open(deta_path, "w") as f:
+        f.write("\n".join(deta_header) + "\n")
         deta_df.to_csv(f, index=False)
 
     print(f"Δη projection saved → {deta_path}  ({len(deta_df)} bins)")
@@ -794,7 +878,9 @@ def save_projections_to_csv(
 # ──────────────────────────────────────────────────────────────────────────────
 # Plotting
 # ──────────────────────────────────────────────────────────────────────────────
-def _draw_3d_surface(ax, correlation, eta_centers, phi_centers, show_colorbar=False, fig=None):
+def _draw_3d_surface(
+    ax, correlation, eta_centers, phi_centers, show_colorbar=False, fig=None
+):
     """
     Draw a single 3D dihadron correlation surface C(Δη, Δφ) onto ``ax``.
 
@@ -820,60 +906,75 @@ def _draw_3d_surface(ax, correlation, eta_centers, phi_centers, show_colorbar=Fa
     """
     # remap φ display range from (-π, π) → (-π/2, 3π/2) without touching
     # phi_centers; roll Z to match the shifted coordinate array
-    split = np.searchsorted(phi_centers, -np.pi / 2)   # first index >= -π/2
-    phi_display = np.concatenate([
-        phi_centers[split:],
-        phi_centers[:split] + 2 * np.pi
-    ])
+    split = np.searchsorted(phi_centers, -np.pi / 2)  # first index >= -π/2
+    phi_display = np.concatenate([phi_centers[split:], phi_centers[:split] + 2 * np.pi])
 
-    Z         = np.clip(correlation, 0, 0.4)
+    Z = np.clip(correlation, 0, 0.4)
     Z_display = np.roll(Z, -split, axis=1)
     max_height = Z_display.max() if Z_display.max() > 0 else 1.0
 
-    ETA, PHI = np.meshgrid(eta_centers, phi_display, indexing='ij')
+    ETA, PHI = np.meshgrid(eta_centers, phi_display, indexing="ij")
 
-    n_colors = 20   # however many discrete steps you want
-    levels   = np.linspace(0, max_height, n_colors + 1)   # bin edges
-    colourticks   = np.linspace(0, max_height, 5)   # bin edges
+    n_colors = 20  # however many discrete steps you want
+    levels = np.linspace(0, max_height, n_colors + 1)  # bin edges
+    colourticks = np.linspace(0, max_height, 5)  # bin edges
 
-    cmap = plt.cm.get_cmap('turbo', n_colors)              # n discrete colours
+    cmap = plt.cm.get_cmap("turbo", n_colors)  # n discrete colours
     norm = mpl.colors.BoundaryNorm(levels, cmap.N)
 
     colors = cmap(norm(Z_display))
 
-    ax.plot_surface(ETA, PHI, Z_display,
-                    facecolors=colors, shade=True, alpha=0.9,
-                    linewidth=0, antialiased=True)
+    ax.plot_surface(
+        ETA,
+        PHI,
+        Z_display,
+        facecolors=colors,
+        shade=True,
+        alpha=0.9,
+        linewidth=0,
+        antialiased=True,
+    )
 
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
 
     if show_colorbar:
-        cbar = fig.colorbar(sm, ax=ax, shrink=0.5, aspect=10, pad=0.15,
-                     ticks=colourticks)
+        cbar = fig.colorbar(
+            sm, ax=ax, shrink=0.5, aspect=10, pad=0.15, ticks=colourticks
+        )
         cbar.ax.tick_params(labelsize=12)
 
     ax.set_zlim(0, max_height * 1.05)
-    ax.set_xlabel(r'$\Delta\eta$',       fontsize=20, labelpad=16)
-    ax.set_ylabel(r'$\Delta\phi$ [rad]', fontsize=20, labelpad=16)
+    ax.set_xlabel(r"$\Delta\eta$", fontsize=20, labelpad=16)
+    ax.set_ylabel(r"$\Delta\phi$ [rad]", fontsize=20, labelpad=16)
     ax.zaxis.set_rotate_label(False)
     ax.text2D(
-        -0.12, 0.5,                          # x, y in axes-fraction coords; nudge x left/right to taste
-        r'$\frac{1}{N_{\rm trig}} \frac{d^2N_{\rm pair}}{d\Delta\eta\, d\Delta\phi}$',
+        -0.12,
+        0.5,  # x, y in axes-fraction coords; nudge x left/right to taste
+        r"$\frac{1}{N_{\rm trig}} \frac{d^2N_{\rm pair}}{d\Delta\eta\, d\Delta\phi}$",
         transform=ax.transAxes,
         fontsize=30,
-        ha='center', va='center',
-        rotation=90
+        ha="center",
+        va="center",
+        rotation=90,
     )
-    ax.tick_params(axis='both', labelsize=12)
-    ax.tick_params(axis='z',    labelsize=12)
+    ax.tick_params(axis="both", labelsize=12)
+    ax.tick_params(axis="z", labelsize=12)
     ax.set_zticks([0.00, 0.10, 0.20, 0.30, 0.40])
-    ax.set_yticks([-np.pi/2, 0, np.pi/2, np.pi, 3*np.pi/2])
+    ax.set_yticks([-np.pi / 2, 0, np.pi / 2, np.pi, 3 * np.pi / 2])
     ax.set_xticks([1.0, 0.5, 0, -0.5, -1.0])
     ax.set_xticklabels(["-1.0", "-0.5", "0.0", "0.5", "1.0"], fontsize=20)
     ax.set_zticklabels(["0.0", "0.1", "0.2", "0.3", "0.4"], fontsize=20)
-    ax.set_yticklabels([r'$-\frac{\pi}{2}$', r'$0$', r'$\frac{\pi}{2}$',
-                         r'$\pi$', r'$\frac{3\pi}{2}$'], fontsize=20)
+    ax.set_yticklabels(
+        [
+            r"$-\frac{\pi}{2}$",
+            r"$0$",
+            r"$\frac{\pi}{2}$",
+            r"$\pi$",
+            r"$\frac{3\pi}{2}$",
+        ],
+        fontsize=20,
+    )
     ax.view_init(elev=25, azim=45)
 
     return sm, max_height
@@ -918,14 +1019,14 @@ def plot_3d_comparison(results, save_path=None, suptitle=None):
     # 3D panels are laid out in the remaining space and never get resized
     # afterwards by fig.colorbar() borrowing space from one of them.
     cbar_width = 0.03
-    gap        = 0.02
+    gap = 0.02
     left, right = 0.03, 1.0 - cbar_width - gap - 0.02
     panel_width = (right - left) / n_panels
 
     axes = [
         fig.add_axes(
             [left + i * panel_width, 0.08, panel_width * 1, 0.84],
-            projection='3d',
+            projection="3d",
         )
         for i in range(n_panels)
     ]
@@ -937,7 +1038,10 @@ def plot_3d_comparison(results, save_path=None, suptitle=None):
     max_heights = []
     for ax, res in zip(axes, results):
         sm, max_height = _draw_3d_surface(
-            ax, res['correlation'], res['eta_centers'], res['phi_centers'],
+            ax,
+            res["correlation"],
+            res["eta_centers"],
+            res["phi_centers"],
             show_colorbar=False,
         )
         ax.set_box_aspect(None, zoom=1.1)
@@ -953,7 +1057,7 @@ def plot_3d_comparison(results, save_path=None, suptitle=None):
     n_colors = 20
     levels = np.linspace(0, global_max, n_colors + 1)
     colourticks = np.linspace(0, global_max, 5)
-    cmap = plt.cm.get_cmap('turbo', n_colors)
+    cmap = plt.cm.get_cmap("turbo", n_colors)
     norm = mpl.colors.BoundaryNorm(levels, cmap.N)
 
     for ax in axes:
@@ -961,36 +1065,51 @@ def plot_3d_comparison(results, save_path=None, suptitle=None):
 
     # ── per-panel kinematic labels (momenta ranges) ──────────────────────────
     for i, (ax, res) in enumerate(zip(axes, results)):
-        trig_range  = res.get('trig_range')
-        assoc_range = res.get('assoc_range')
+        trig_range = res.get("trig_range")
+        assoc_range = res.get("assoc_range")
         if trig_range is None and assoc_range is None:
             continue
 
         lines = []
         if trig_range is not None:
-            lines.append(f'{trig_range[0]:.1f} < $p_T^{{\\rm trig}}$ < {trig_range[1]:.1f} GeV/c')
+            lines.append(
+                f"{trig_range[0]:.1f} < $p_T^{{\\rm trig}}$ < {trig_range[1]:.1f} GeV/c"
+            )
         if assoc_range is not None:
-            lines.append(f'{assoc_range[0]:.1f} < $p_T^{{\\rm assoc}}$ < {assoc_range[1]:.1f} GeV/c')
-        label_text = '\n'.join(lines)
+            lines.append(
+                f"{assoc_range[0]:.1f} < $p_T^{{\\rm assoc}}$ < {assoc_range[1]:.1f} GeV/c"
+            )
+        label_text = "\n".join(lines)
 
         if i == 0:
-            x, ha = -0.5, 'left'
+            x, ha = -0.5, "left"
         elif i == n_panels - 1:
-            x, ha = 1.5, 'right'
+            x, ha = 1.5, "right"
         else:
-            x, ha = 0.5, 'center'
+            x, ha = 0.5, "center"
 
         ax.text2D(
-            x, 0.04, label_text,
+            x,
+            0.04,
+            label_text,
             transform=ax.transAxes,
-            fontsize=20, ha=ha, va='bottom',
+            fontsize=20,
+            ha=ha,
+            va="bottom",
         )
 
     # ── figure-level sqrt(s) / |eta| label (upper-left) ──────────────────────
     fig.text(
-        left + 0.01, 0.95,
-        "PYTHIA8 Simulations" + '\n' + r'$\sqrt{s} = 2.76$ TeV' + '\n' + r'$|\eta| < 2.4$',
-        fontsize=24, ha='left', va='top',
+        left + 0.01,
+        0.95,
+        "PYTHIA8 Simulations"
+        + "\n"
+        + r"$\sqrt{s} = 2.76$ TeV"
+        + "\n"
+        + r"$|\eta| < 2.4$",
+        fontsize=24,
+        ha="left",
+        va="top",
     )
 
     # Dedicated colorbar axes — does NOT borrow space from any 3D panel,
@@ -1002,22 +1121,26 @@ def plot_3d_comparison(results, save_path=None, suptitle=None):
     cbar.ax.tick_params(labelsize=16)
 
     if suptitle:
-        fig.suptitle(suptitle, fontsize=18, fontweight='bold')
+        fig.suptitle(suptitle, fontsize=18, fontweight="bold")
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Figure saved to: {save_path}")
 
     return fig, axes
 
 
-def plot_correlation_with_projections(correlation, eta_centers, phi_centers,
-                                      background_level=0.0,
-                                      phi_proj_central=None,
-                                      phi_proj_err=None,
-                                      phi_centers_folded=None,
-                                      metadata=None,
-                                      save_path=None):
+def plot_correlation_with_projections(
+    correlation,
+    eta_centers,
+    phi_centers,
+    background_level=0.0,
+    phi_proj_central=None,
+    phi_proj_err=None,
+    phi_centers_folded=None,
+    metadata=None,
+    save_path=None,
+):
     """
     Main physics figure: 3D correlation surface on the left, and on the
     right (top to bottom):
@@ -1044,83 +1167,103 @@ def plot_correlation_with_projections(correlation, eta_centers, phi_centers,
     """
 
     fig = plt.figure(figsize=(18, 12))
-    gs  = GridSpec(3, 3, figure=fig,
-                   width_ratios=[3, 0.5, 0.5],
-                   wspace=0.4, hspace=0.5)
+    gs = GridSpec(3, 3, figure=fig, width_ratios=[3, 0.5, 0.5], wspace=0.4, hspace=0.5)
 
-    ax3d   = fig.add_subplot(gs[:, 0], projection='3d')
+    ax3d = fig.add_subplot(gs[:, 0], projection="3d")
     ax_phi = fig.add_subplot(gs[0, 1:])
     ax_rat = fig.add_subplot(gs[1, 1:])
     ax_eta = fig.add_subplot(gs[2, 1:])
 
     # ── colour palette ────────────────────────────────────────────────────────
-    blue   = plt.get_cmap('Blues')(0.7)
-    orange = plt.get_cmap('Oranges')(0.7)
-    red    = plt.get_cmap('Reds')(0.7)
-    green  = plt.get_cmap('Greens')(0.7)
+    blue = plt.get_cmap("Blues")(0.7)
+    orange = plt.get_cmap("Oranges")(0.7)
+    red = plt.get_cmap("Reds")(0.7)
+    green = plt.get_cmap("Greens")(0.7)
 
-    d_eta = eta_centers[1] - eta_centers[0] if len(eta_centers) > 1 else 0.1
     d_phi = phi_centers[1] - phi_centers[0] if len(phi_centers) > 1 else 0.1
 
     # ── 3D surface ────────────────────────────────────────────────────────────
-    _draw_3d_surface(ax3d, correlation, eta_centers, phi_centers,
-                     show_colorbar=True, fig=fig)
+    _draw_3d_surface(
+        ax3d, correlation, eta_centers, phi_centers, show_colorbar=True, fig=fig
+    )
 
     # ── Δφ projection ─────────────────────────────────────────────────────────
     if phi_proj_central is not None and phi_centers_folded is not None:
         pf_central = phi_proj_central
         pf_centers = phi_centers_folded
-        pf_err     = phi_proj_err
+        pf_err = phi_proj_err
     else:
-        eta_mask       = np.abs(eta_centers) < ETA_CUT
-        phi_projection = np.mean(correlation[eta_mask, :], axis=0) 
+        eta_mask = np.abs(eta_centers) < ETA_CUT
+        phi_projection = np.mean(correlation[eta_mask, :], axis=0)
         pf_central, pf_centers = _fold_phi(phi_projection, phi_centers)
         pf_err = None
 
-    phi_ticks  = [0, np.pi/4, np.pi/2, 3*np.pi/4, np.pi]
-    phi_labels = [r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', r'$\pi$']
+    phi_ticks = [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4, np.pi]
+    phi_labels = [r"$0$", r"$\pi/4$", r"$\pi/2$", r"$3\pi/4$", r"$\pi$"]
 
     if pf_err is not None:
-        ax_phi.errorbar(pf_centers, pf_central, yerr=pf_err,
-                        fmt='o', color=blue, ms=4, capsize=3, capthick=1,
-                        elinewidth=1, label='Pythia (JK errors)')
+        ax_phi.errorbar(
+            pf_centers,
+            pf_central,
+            yerr=pf_err,
+            fmt="o",
+            color=blue,
+            ms=4,
+            capsize=3,
+            capthick=1,
+            elinewidth=1,
+            label="Pythia (JK errors)",
+        )
     else:
-        ax_phi.plot(pf_centers, pf_central,
-                    'o', color=blue, ms=4, label='Pythia')
+        ax_phi.plot(pf_centers, pf_central, "o", color=blue, ms=4, label="Pythia")
 
     # Always draw the ZYAM level — visible even when subtraction is off.
-    ax_phi.axhline(y=background_level, color=red, linestyle='--',
-                   linewidth=1.5, alpha=0.7,
-                   label=f'ZYAM min: {background_level:.4f}')
+    ax_phi.axhline(
+        y=background_level,
+        color=red,
+        linestyle="--",
+        linewidth=1.5,
+        alpha=0.7,
+        label=f"ZYAM min: {background_level:.4f}",
+    )
 
     # ── try to load the CMS data file ─────────────────────────────────────────
     cms_data_loaded = False
     cms_phi = None
-    cms_y   = None
+    cms_y = None
 
     if metadata:
-        trig_range  = metadata.get('CUT_TRIG_PT_RANGE')  or metadata.get('TRIG_PT_RANGE')
-        assoc_range = metadata.get('CUT_ASSOC_PT_RANGE') or metadata.get('ASSOC_PT_RANGE')
+        trig_range = metadata.get("CUT_TRIG_PT_RANGE") or metadata.get("TRIG_PT_RANGE")
+        assoc_range = metadata.get("CUT_ASSOC_PT_RANGE") or metadata.get(
+            "ASSOC_PT_RANGE"
+        )
 
         if isinstance(trig_range, list) and isinstance(assoc_range, list):
             cms_path = (
                 f"datathief/CMS_{trig_range[0]:.0f}-{trig_range[1]:.0f}"
                 f"_{assoc_range[0]:.0f}-{assoc_range[1]:.0f}"
             )
-            for ext in ('.csv', '.txt'):
+            for ext in (".csv", ".txt"):
                 candidate = cms_path + ext
                 if os.path.exists(candidate):
                     try:
-                        cms_df  = pd.read_csv(candidate)
-                        cms_phi = cms_df['DeltaPhi'].values
-                        cms_y   = cms_df['d2Npair'].values
+                        cms_df = pd.read_csv(candidate)
+                        cms_phi = cms_df["DeltaPhi"].values
+                        cms_y = cms_df["d2Npair"].values
                         sort_idx = np.argsort(cms_phi)
                         cms_phi, cms_y = cms_phi[sort_idx], cms_y[sort_idx]
-                        ax_phi.plot(cms_phi, cms_y, 's', color=green, ms=4,
-                                    markerfacecolor='none', markeredgewidth=1.2,
-                                    label='CMS Pythia data')
+                        ax_phi.plot(
+                            cms_phi,
+                            cms_y,
+                            "s",
+                            color=green,
+                            ms=4,
+                            markerfacecolor="none",
+                            markeredgewidth=1.2,
+                            label="CMS Pythia data",
+                        )
                         cms_data_loaded = True
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         print(f"Warning: could not load CMS data from {candidate}: {e}")
                     break
 
@@ -1128,67 +1271,99 @@ def plot_correlation_with_projections(correlation, eta_centers, phi_centers,
                 print(f"Warning: no CMS data file found at {cms_path}(.csv/.txt)")
 
     ax_phi.legend(fontsize=8)
-    ax_phi.set_xlabel(r'|$\Delta\phi$| [rad]', fontsize=10)
+    ax_phi.set_xlabel(r"|$\Delta\phi$| [rad]", fontsize=10)
     ax_phi.set_ylabel(
-        r'$\frac{1}{N_{\rm trig}} \frac{dN_{\rm pair}}{d\Delta\phi}$', fontsize=10
+        r"$\frac{1}{N_{\rm trig}} \frac{dN_{\rm pair}}{d\Delta\phi}$", fontsize=10
     )
-    ax_phi.set_title(rf'Projection onto $|\Delta\phi|$  ($|\Delta\eta|< {ETA_CUT}$)', fontsize=10)
+    ax_phi.set_title(
+        rf"Projection onto $|\Delta\phi|$  ($|\Delta\eta|< {ETA_CUT}$)", fontsize=10
+    )
     ax_phi.set_xlim(-0.1, np.pi)
     ax_phi.set_xticks(phi_ticks)
     ax_phi.set_xticklabels(phi_labels, fontsize=8)
-    ax_phi.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+    ax_phi.axhline(y=0, color="k", linestyle="--", alpha=0.3)
     ax_phi.grid(True, alpha=0.3)
 
     # ── CMS / Pythia ratio ────────────────────────────────────────────────────
     if cms_data_loaded and cms_phi is not None:
         pythia_dict = dict(zip(pf_centers, pf_central))
-        err_dict    = dict(zip(pf_centers, pf_err)) if pf_err is not None else {}
+        err_dict = dict(zip(pf_centers, pf_err)) if pf_err is not None else {}
 
-        ratio_phi  = []
+        ratio_phi = []
         ratio_vals = []
         ratio_errs = []
 
         for cp, cy in zip(cms_phi, cms_y):
             closest = min(pf_centers, key=lambda x: abs(x - cp))
-            py_val  = pythia_dict[closest]
+            py_val = pythia_dict[closest]
             if abs(closest - cp) <= d_phi / 2.0 and py_val != 0:
                 ratio_phi.append(cp)
                 ratio_vals.append(cy / py_val)
                 if pf_err is not None and py_val != 0:
-                    ratio_errs.append(abs(cy / py_val) * (err_dict[closest] / abs(py_val)))
+                    ratio_errs.append(
+                        abs(cy / py_val) * (err_dict[closest] / abs(py_val))
+                    )
                 else:
                     ratio_errs.append(0.0)
 
         if ratio_phi:
-            ratio_phi  = np.array(ratio_phi)
+            ratio_phi = np.array(ratio_phi)
             ratio_vals = np.array(ratio_vals)
             ratio_errs = np.array(ratio_errs)
 
             if pf_err is not None and ratio_errs.any():
-                ax_rat.errorbar(ratio_phi, ratio_vals, yerr=ratio_errs,
-                                fmt='D', color='purple', ms=4,
-                                markerfacecolor='none', markeredgewidth=1.2,
-                                capsize=3, capthick=1, elinewidth=1,
-                                label='CMS / Pythia')
+                ax_rat.errorbar(
+                    ratio_phi,
+                    ratio_vals,
+                    yerr=ratio_errs,
+                    fmt="D",
+                    color="purple",
+                    ms=4,
+                    markerfacecolor="none",
+                    markeredgewidth=1.2,
+                    capsize=3,
+                    capthick=1,
+                    elinewidth=1,
+                    label="CMS / Pythia",
+                )
             else:
-                ax_rat.plot(ratio_phi, ratio_vals,
-                            'D', color='purple', ms=4,
-                            markerfacecolor='none', markeredgewidth=1.2,
-                            label='CMS / Pythia')
+                ax_rat.plot(
+                    ratio_phi,
+                    ratio_vals,
+                    "D",
+                    color="purple",
+                    ms=4,
+                    markerfacecolor="none",
+                    markeredgewidth=1.2,
+                    label="CMS / Pythia",
+                )
         else:
-            ax_rat.text(0.5, 0.5,
-                        'No matching bins found\n(CMS & Pythia φ grids differ)',
-                        ha='center', va='center',
-                        transform=ax_rat.transAxes, fontsize=9, color='gray')
+            ax_rat.text(
+                0.5,
+                0.5,
+                "No matching bins found\n(CMS & Pythia φ grids differ)",
+                ha="center",
+                va="center",
+                transform=ax_rat.transAxes,
+                fontsize=9,
+                color="gray",
+            )
     else:
-        ax_rat.text(0.5, 0.5, 'CMS data not loaded',
-                    ha='center', va='center',
-                    transform=ax_rat.transAxes, fontsize=9, color='gray')
+        ax_rat.text(
+            0.5,
+            0.5,
+            "CMS data not loaded",
+            ha="center",
+            va="center",
+            transform=ax_rat.transAxes,
+            fontsize=9,
+            color="gray",
+        )
 
-    ax_rat.axhline(y=1.0, color='k', linestyle='--', linewidth=1.0, alpha=0.5)
-    ax_rat.set_xlabel(r'$|\Delta\phi|$ [rad]', fontsize=10)
-    ax_rat.set_ylabel(r'CMS Pythia / Pythia',         fontsize=10)
-    ax_rat.set_title(r'Ratio CMS Pythia / Pythia  ($|\Delta\eta|<1$)', fontsize=10)
+    ax_rat.axhline(y=1.0, color="k", linestyle="--", linewidth=1.0, alpha=0.5)
+    ax_rat.set_xlabel(r"$|\Delta\phi|$ [rad]", fontsize=10)
+    ax_rat.set_ylabel(r"CMS Pythia / Pythia", fontsize=10)
+    ax_rat.set_title(r"Ratio CMS Pythia / Pythia  ($|\Delta\eta|<1$)", fontsize=10)
     ax_rat.set_xlim(-0.1, np.pi)
     ax_rat.set_ylim(0.5, 1.5)
     ax_rat.set_xticks(phi_ticks)
@@ -1200,46 +1375,58 @@ def plot_correlation_with_projections(correlation, eta_centers, phi_centers,
     eta_projection = np.mean(correlation, axis=1)
     eta_proj_folded, eta_centers_folded = _fold_phi(eta_projection, eta_centers)
 
-    ax_eta.plot(eta_centers_folded, eta_proj_folded,
-                'o', color=orange, ms=4, label='Pythia')
+    ax_eta.plot(
+        eta_centers_folded, eta_proj_folded, "o", color=orange, ms=4, label="Pythia"
+    )
 
     # Always draw the ZYAM line here too for consistency.
-    ax_eta.axhline(y=background_level, color=red, linestyle='--',
-                   linewidth=1.5, alpha=0.7,
-                   label=f'ZYAM min: {background_level:.4f}')
+    ax_eta.axhline(
+        y=background_level,
+        color=red,
+        linestyle="--",
+        linewidth=1.5,
+        alpha=0.7,
+        label=f"ZYAM min: {background_level:.4f}",
+    )
     ax_eta.legend(fontsize=8)
 
-    ax_eta.set_xlabel(r'$|\Delta\eta|$', fontsize=10)
+    ax_eta.set_xlabel(r"$|\Delta\eta|$", fontsize=10)
     ax_eta.set_ylabel(
-        r'$\frac{1}{N_{\rm trig}} \frac{dN_{\rm pair}}{d\Delta\eta}$', fontsize=10
+        r"$\frac{1}{N_{\rm trig}} \frac{dN_{\rm pair}}{d\Delta\eta}$", fontsize=10
     )
-    ax_eta.set_title(r'Projection onto $|\Delta\eta|$  (all $\Delta\phi$)', fontsize=10)
-    ax_eta.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+    ax_eta.set_title(r"Projection onto $|\Delta\eta|$  (all $\Delta\phi$)", fontsize=10)
+    ax_eta.axhline(y=0, color="k", linestyle="--", alpha=0.3)
     ax_eta.grid(True, alpha=0.3)
 
     # ── figure-level title ────────────────────────────────────────────────────
-    suptitle = 'No FSR & ISR Dihadron Correlation'
+    suptitle = "No FSR & ISR Dihadron Correlation"
     if metadata:
         parts = []
-        trig_range  = metadata.get('CUT_TRIG_PT_RANGE')  or metadata.get('TRIG_PT_RANGE')
-        assoc_range = metadata.get('CUT_ASSOC_PT_RANGE') or metadata.get('ASSOC_PT_RANGE')
+        trig_range = metadata.get("CUT_TRIG_PT_RANGE") or metadata.get("TRIG_PT_RANGE")
+        assoc_range = metadata.get("CUT_ASSOC_PT_RANGE") or metadata.get(
+            "ASSOC_PT_RANGE"
+        )
         if isinstance(trig_range, list):
-            parts.append(f'Trigger $p_T$: {trig_range[0]:.1f}–{trig_range[1]:.1f} GeV/c')
+            parts.append(
+                f"Trigger $p_T$: {trig_range[0]:.1f}–{trig_range[1]:.1f} GeV/c"
+            )
         if isinstance(assoc_range, list):
-            parts.append(f'Assoc $p_T$: {assoc_range[0]:.1f}–{assoc_range[1]:.1f} GeV/c')
-            parts.append(rf'$\eta$ < 2.0')
-        n_blocks_used = metadata.get('jackknife_n_blocks')
+            parts.append(
+                f"Assoc $p_T$: {assoc_range[0]:.1f}–{assoc_range[1]:.1f} GeV/c"
+            )
+            parts.append(r"$\eta$ < 2.0")
+        n_blocks_used = metadata.get("jackknife_n_blocks")
         if n_blocks_used:
-            parts.append(f'JK blocks: {n_blocks_used}')
-        if metadata.get('n_bins'):
-            parts.append(f'{metadata["n_bins"]} pTHat bins combined')
+            parts.append(f"JK blocks: {n_blocks_used}")
+        if metadata.get("n_bins"):
+            parts.append(f"{metadata['n_bins']} pTHat bins combined")
         if parts:
-            suptitle += '\n' + '   |   '.join(parts)
+            suptitle += "\n" + "   |   ".join(parts)
 
-    fig.suptitle(suptitle, fontsize=13, fontweight='bold')
+    fig.suptitle(suptitle, fontsize=13, fontweight="bold")
 
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Figure saved to: {save_path}")
 
     return fig, (ax3d, ax_phi, ax_rat, ax_eta)
@@ -1249,12 +1436,12 @@ def plot_correlation_with_projections(correlation, eta_centers, phi_centers,
 # Main
 # ──────────────────────────────────────────────────────────────────────────────
 def main():
-    POW  = 3
+    POW = 3
     ASSOC = ASSOC_PT_MIN, ASSOC_PT_MAX
 
     # Trigger pT ranges to compare, side by side, as 3D surfaces.
     TRIG_RANGES = [
-        (4.0,  6.0),
+        (4.0, 6.0),
         (10.0, 12.0),
     ]
 
@@ -1262,9 +1449,9 @@ def main():
 
     for trig_lo, trig_hi in TRIG_RANGES:
         TYPE = f"{trig_lo:.1f}-{trig_hi:.1f}"
-        BASE = f'pythiaData/2760/cms/pythiaComparison/{TYPE}'
+        BASE = f"pythiaData/2760/cms/pythiaComparison/{TYPE}"
 
-        filenames = sorted(glob.glob(f'{BASE}/dihadron_pow{POW}_pT*.csv'))
+        filenames = sorted(glob.glob(f"{BASE}/dihadron_pow{POW}_pT*.csv"))
 
         if not filenames:
             raise FileNotFoundError(
@@ -1282,26 +1469,30 @@ def main():
         print("\nLoading and combining bins...")
         data, metadata = read_and_combine_bins(
             filenames,
-            trig_pt_min=trig_lo, trig_pt_max=trig_hi,
-            assoc_pt_min=ASSOC[0], assoc_pt_max=ASSOC[1],
+            trig_pt_min=trig_lo,
+            trig_pt_max=trig_hi,
+            assoc_pt_min=ASSOC[0],
+            assoc_pt_max=ASSOC[1],
         )
 
-        ntrig_override = metadata.get('N_TRIG')
+        ntrig_override = metadata.get("N_TRIG")
 
         # ------------------------------------------------------------------
         # Full 2D correlation (needed for the 3D surface)
         # ------------------------------------------------------------------
         print("\nComputing 2D dihadron correlation...")
-        (correlation, eta_centers, phi_centers,
-         ntrig, bkg, raw_counts, weighted_counts) = compute_dihadron_correlation(
-            data, metadata,
-            eta_bins=15,
-            phi_bins=33,
-            eta_range=(-ETA_CUT, ETA_CUT),
-            phi_range=(-np.pi, np.pi),
-            zyam=True,
-            zyam_range={'phi': (0.5, 1.5)},
-            ntrig_override=ntrig_override,
+        (correlation, eta_centers, phi_centers, ntrig, bkg, _, _) = (
+            compute_dihadron_correlation(
+                data,
+                metadata,
+                eta_bins=15,
+                phi_bins=33,
+                eta_range=(-ETA_CUT, ETA_CUT),
+                phi_range=(-np.pi, np.pi),
+                zyam=True,
+                zyam_range={"phi": (0.5, 1.5)},
+                ntrig_override=ntrig_override,
+            )
         )
 
         print(f"Number of triggers (weighted): {ntrig:.4e}")
@@ -1309,27 +1500,29 @@ def main():
         print(f"Min correlation value:         {np.min(correlation):.6f}")
         print(f"Background level (ZYAM):       {bkg:.6f}")
 
-        panel_results.append({
-            'correlation': correlation,
-            'eta_centers': eta_centers,
-            'phi_centers': phi_centers,
-            'label': f'{trig_lo:.0f}-{trig_hi:.0f}',
-            'trig_range': (trig_lo, trig_hi),
-            'assoc_range': ASSOC,
-        })
+        panel_results.append(
+            {
+                "correlation": correlation,
+                "eta_centers": eta_centers,
+                "phi_centers": phi_centers,
+                "label": f"{trig_lo:.0f}-{trig_hi:.0f}",
+                "trig_range": (trig_lo, trig_hi),
+                "assoc_range": ASSOC,
+            }
+        )
 
     # ------------------------------------------------------------------
     # Plot: 3D surfaces side by side, colorbar next to the 10-12 panel
     # ------------------------------------------------------------------
-    out_dir = f'plots/correlations/cms/pythiaComparison/trig_comparison'
+    out_dir = "plots/correlations/cms/pythiaComparison/trig_comparison"
     os.makedirs(out_dir, exist_ok=True)
 
     plot_3d_comparison(
         panel_results,
         suptitle=None,
-        save_path=f'{out_dir}/dihadron_3d_trig_comparison_pow{POW}.svg',
+        save_path=f"{out_dir}/dihadron_3d_trig_comparison_pow{POW}.svg",
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
