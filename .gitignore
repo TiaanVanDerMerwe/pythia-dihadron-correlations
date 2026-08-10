@@ -1,4 +1,6 @@
 __pycache__/
+.clang-format
+.vscode/
 
 # Compile files
 bin/
