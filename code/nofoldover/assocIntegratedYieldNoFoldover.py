@@ -877,14 +877,15 @@ def main():
 
     print_yield_table(slice_results)
 
-    out_dir = f"plots/yields/{TYPE}"
+    out_dir = f"outputs/plots/yields/{TYPE}"
+    csv_dir = f"outputs/csv/yields/{TYPE}"
     trig_range = (TRIG_PT_MIN, TRIG_PT_MAX)
     os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(csv_dir, exist_ok=True)
 
-    # ── CSV output (written to the same directory as the images) ─────────────
     print("\nSaving CSVs ...")
-    save_dphi_slices_csv(slice_results, out_dir, trig_range)
-    save_integrated_yields_csv(slice_results, out_dir, trig_range)
+    save_dphi_slices_csv(slice_results, csv_dir, trig_range)
+    save_integrated_yields_csv(slice_results, csv_dir, trig_range)
 
     print("Generating Delta-phi slice plot ...")
     plot_dphi_slices(

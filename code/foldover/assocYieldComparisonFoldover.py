@@ -88,7 +88,7 @@ def load_csv(folder: str) -> pd.DataFrame:
 data = {}
 for cfg in CONFIGS:
     try:
-        data[cfg] = load_csv(f"plots/yields/expComparison/19.2-24.0/{cfg}")
+        data[cfg] = load_csv(f"outputs/csv/yields/expComparison/19.2-24.0/{cfg}")
     except FileNotFoundError:
         print(f"  WARNING: {os.path.join(cfg, FILENAME)} not found — skipping.")
 
@@ -255,6 +255,6 @@ fig.suptitle(
 )
 
 plt.tight_layout()
-plt.savefig(f"plots/yields/test/{SAVE_PATH}", dpi=200, bbox_inches="tight")
+plt.savefig(f"outputs/plots/yields/test/{SAVE_PATH}", dpi=200, bbox_inches="tight")
 print(f"Saved → {SAVE_PATH}")
 plt.show()

@@ -35,13 +35,13 @@ import pandas as pd
 # ─────────────────────────────────────────────────────────────────────────────
 DATASETS = [
     {
-        "path": "plots/htff/htff_8.0-15.0_fsr_pythia.csv",
+        "path": "outputs/csv/htff/htff_8.0-15.0_fsr_pythia.csv",
         "label": r"FSR",
         "color": "#4453FF",
         "marker": "o",
     },
     {
-        "path": "plots/htff/htff_8.0-15.0_nofsr_pythia.csv",
+        "path": "outputs/csv/htff/htff_8.0-15.0_nofsr_pythia.csv",
         "label": r"No FSR",
         "color": "#E8700A",
         "marker": "s",
@@ -59,7 +59,7 @@ DATASETS = [
 REFERENCE_IDX = 0
 
 # Output file (set to None to only show interactively)
-SAVE_PATH = "plots/htff/htff_comparison.png"
+SAVE_PATH = "outputs/plots/htff/htff_comparison.png"
 
 # Optional: trigger pT range for the suptitle (purely cosmetic)
 TRIG_PT_RANGE = (8.0, 15.0)

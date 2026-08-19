@@ -628,7 +628,7 @@ def save_projections_to_csv(
     phi_centers_2d,
     background_level,
     metadata,
-    save_dir="plots/Correlations",
+    save_dir="outputs/csv/Correlations",
     tag="",
 ):
     """
@@ -1251,7 +1251,8 @@ def main():
     # Save projections to CSV
     # ------------------------------------------------------------------
     print("\nSaving projections to CSV...")
-    out_dir = f"plots/correlations/alice/{TYPE}"
+    out_dir = f"outputs/plots/correlations/alice/{TYPE}"
+    csv_dir = f"outputs/csv/correlations/alice/{TYPE}"
     _, _ = save_projections_to_csv(
         phi_proj_central=phi_proj_central,
         phi_proj_err=phi_proj_err,
@@ -1261,7 +1262,7 @@ def main():
         phi_centers_2d=phi_centers,
         background_level=bkg,
         metadata=metadata,
-        save_dir=out_dir,
+        save_dir=csv_dir,
         tag=f"pow{POW}",
     )
 

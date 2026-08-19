@@ -758,7 +758,7 @@ def save_projections_to_csv(
     phi_centers,
     background_level,
     metadata,
-    save_dir="plots/Correlations",
+    save_dir="outputs/csv/Correlations",
     tag="",
 ):
     """
@@ -1514,7 +1514,7 @@ def main():
     # ------------------------------------------------------------------
     # Plot: 3D surfaces side by side, colorbar next to the 10-12 panel
     # ------------------------------------------------------------------
-    out_dir = "plots/correlations/cms/pythiaComparison/trig_comparison"
+    out_dir = "outputs/plots/correlations/cms/pythiaComparison/trig_comparison"
     os.makedirs(out_dir, exist_ok=True)
 
     plot_3d_comparison(

@@ -12,6 +12,8 @@ Fit results (amplitude, width, and their uncertainties) are printed to
 the console in a formatted table and written to a CSV:
     OUTPUT_DIR/double_gaussian_fit_results.csv
 
+Set SHOW_FIT = False to skip fitting entirely (no curves, no table, no CSV).
+
 Directory layout assumed
 ------------------------
 plots/Correlations/star(alice)/
@@ -34,51 +36,37 @@ import pandas as pd
 from matplotlib import ticker
 from scipy.optimize import curve_fit
 
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "mathtext.fontset": "cm",  # Computer-Modern-style math, matches LaTeX default
+    }
+)
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
-BASE_DIR = "plots/correlations/alice"
+BASE_DIR = "outputs/csv/correlations/star"
 EXP_DIR = "datathief"
-OUTPUT_DIR = "plots/comparisons/alice"
-SUFFIX = "nofrs"
+OUTPUT_DIR = "outputs/plots/comparisons/star"
+CSV_OUTPUT_DIR = "outputs/csv/comparisons/star"
+SUFFIX = ""
 
-SUBDIRS = ["default", "nofsr"]
+SUBDIRS = [""]
 
 SHOW_RATIO = False
+SHOW_FIT = False  # set False to disable double-Gaussian fitting/overlay entirely
 
 # Colour and marker style per configuration (order matches SUBDIRS)
 STYLE = {
-    "default": {
-        "label": "FSR & ISR",
+    "": {
+        "label": "PYTHIA Data",
         "color": "#4453FF",
         "marker": "^",
         "ls": "-",
         "lw": 1.4,
         "zorder": 5,
-    },
-    "nofsr": {
-        "label": "No FSR & ISR",
-        "color": "#D55E00",
-        "marker": "o",
-        "ls": "-",
-        "lw": 1.4,
-        "zorder": 4,
-    },
-    "noisr": {
-        "label": "FSR & No ISR",
-        "color": "#009E73",
-        "marker": "s",
-        "ls": "-",
-        "lw": 1.4,
-        "zorder": 3,
-    },
-    "nofsrnoisr": {
-        "label": "No FSR & No ISR",
-        "color": "#CC79A7",
-        "marker": "D",
-        "ls": "-",
-        "lw": 1.4,
-        "zorder": 2,
+        "fontsize": 15,
     },
 }
 
@@ -90,7 +78,8 @@ EXP_STYLE = {
     "markerfacecolor": "black",
     "markeredgewidth": 0.8,
     "zorder": 1,
-    "label": "STAR data",
+    "label": "STAR Data",
+    "fontsize": 15,
 }
 
 MS = 4  # marker size for Pythia points
@@ -271,7 +260,7 @@ def load_dphi_csvs(base_dir, subdirs):
 
 
 def load_exp_data(exp_dir, trig_lo, trig_hi, assoc_lo, assoc_hi):
-    stem = f"ALICE_{trig_lo:.0f}-{trig_hi:.0f}_{assoc_lo:.0f}-{assoc_hi:.0f}"
+    stem = f"STAR_{trig_lo:.0f}-{trig_hi:.0f}_{assoc_lo:.0f}-{assoc_hi:.0f}"
     for ext in (".csv", ".txt"):
         fpath = os.path.join(exp_dir, stem + ext)
         if os.path.exists(fpath):
@@ -335,7 +324,15 @@ def print_fit_table(rows):
 # Main plotting routine
 # ──────────────────────────────────────────────────────────────────────────────
 def plot_dphi_comparison(
-    all_data, pt_key, exp_dir, save_dir, subdirs, style, show_ratio=True, fit_rows=None
+    all_data,
+    pt_key,
+    exp_dir,
+    save_dir,
+    subdirs,
+    style,
+    show_ratio=True,
+    fit_rows=None,
+    show_fit=True,
 ):
 
     pt_ranges = None
@@ -402,23 +399,24 @@ def plot_dphi_comparison(
             )
 
         # Overlay fit curve
-        popt, perr, success = fit_double_gaussian(
-            phi, y, err if np.any(err > 0) else None
-        )
-        if success:
-            ax_top.plot(
-                phi_dense,
-                double_gaussian(phi_dense, *popt),
-                color=st["color"],
-                ls="--",
-                lw=1.2,
-                alpha=0.8,
+        if show_fit:
+            popt, perr, success = fit_double_gaussian(
+                phi, y, err if np.any(err > 0) else None
             )
+            if success:
+                ax_top.plot(
+                    phi_dense,
+                    double_gaussian(phi_dense, *popt),
+                    color=st["color"],
+                    ls="--",
+                    lw=1.2,
+                    alpha=0.8,
+                )
 
-        # Collect fit row
-        if fit_rows is not None:
-            label = style[sd]["label"] if sd in style else sd
-            fit_rows.append(_format_fit_row(label, pt_key, popt, perr, success))
+            # Collect fit row
+            if fit_rows is not None:
+                label = style[sd]["label"] if sd in style else sd
+                fit_rows.append(_format_fit_row(label, pt_key, popt, perr, success))
 
     if exp_phi is not None:
         ax_top.step(
@@ -445,43 +443,61 @@ def plot_dphi_comparison(
         )
 
         # Fit experimental data
-        avg_err = (exp_y_err_pos + exp_y_err_neg) / 2.0
-        popt_e, perr_e, success_e = fit_double_gaussian(exp_phi, exp_y, avg_err)
-        if success_e:
-            ax_top.plot(
-                phi_dense,
-                double_gaussian(phi_dense, *popt_e),
-                color=EXP_STYLE["color"],
-                ls="--",
-                lw=1.2,
-                alpha=0.8,
-            )
-        if fit_rows is not None:
-            fit_rows.append(
-                _format_fit_row("ALICE data", pt_key, popt_e, perr_e, success_e)
-            )
+        if show_fit:
+            avg_err = (exp_y_err_pos + exp_y_err_neg) / 2.0
+            popt_e, perr_e, success_e = fit_double_gaussian(exp_phi, exp_y, avg_err)
+            if success_e:
+                ax_top.plot(
+                    phi_dense,
+                    double_gaussian(phi_dense, *popt_e),
+                    color=EXP_STYLE["color"],
+                    ls="--",
+                    lw=1.2,
+                    alpha=0.8,
+                )
+            if fit_rows is not None:
+                fit_rows.append(
+                    _format_fit_row("STAR data", pt_key, popt_e, perr_e, success_e)
+                )
 
     ax_top.axhline(0, color="k", lw=0.6, ls="--", alpha=0.35)
     ax_top.set_ylabel(
-        r"$\frac{1}{N_{\rm trig}}\frac{dN_{\rm pair}}{d\Delta\phi}$", fontsize=17
+        r"$\frac{1}{N_{\rm trig}}\frac{dN_{\rm pair}}{d\Delta\phi}$", fontsize=30
     )
-    ax_top.set_title(
-        f"ALICE Dihadron $\\Delta\\phi$ projection\n"
-        f"Trigger $p_T$: {trig_lo:.1f}–{trig_hi:.1f} GeV/c   "
-        f"Assoc $p_T$: {assoc_lo:.1f}–{assoc_hi:.1f} GeV/c   "
-        f"$|\\eta|$ < 1.0",
-        fontsize=13,
-        fontweight="bold",
+
+    # Kinematic ranges as an in-axes label (paper style: no title)
+    kin_label = (
+        f"{trig_lo:.1f} < $p_T^{{\\rm trig}}$ < {trig_hi:.1f} GeV/c\n"
+        f"{assoc_lo:.1f} < $p_T^{{\\rm assoc}}$ < $p_T^{{\\rm trig}}$\n"
+        r"$\sqrt{s}=200$ GeV" + "\n"
+        r"$|\Delta \eta| < 1.4$"
     )
-    ax_top.legend(fontsize=9, framealpha=0.85, loc="upper right")
+    ax_top.text(
+        0.97,
+        0.97,
+        kin_label,
+        transform=ax_top.transAxes,
+        ha="right",
+        va="top",
+        fontsize=20,
+        zorder=10,
+    )
+
+    ax_top.legend(
+        fontsize=18,
+        frameon=False,
+        loc="center",
+        bbox_to_anchor=(0.49, 0.5),
+        handlelength=1.2,
+    )
     ax_top.grid(True, alpha=0.25, lw=0.6)
     ax_top.set_xlim(17 * np.pi / 41 - 0.1, 65 * np.pi / 41 + 0.1)
-    ax_top.tick_params(axis="y", labelsize=13)
+    ax_top.tick_params(axis="y", labelsize=20)
 
     if not show_ratio:
-        ax_top.set_xlabel(r"$\Delta\phi$ [rad]", fontsize=13)
+        ax_top.set_xlabel(r"$\Delta\phi$ [rad]", fontsize=20)
         ax_top.set_xticks(phi_ticks)
-        ax_top.set_xticklabels(phi_labels, fontsize=13)
+        ax_top.set_xticklabels(phi_labels, fontsize=22)
 
     # ── bottom panel: ratio ───────────────────────────────────────────────────
     if show_ratio and ax_bot is not None:
@@ -564,9 +580,10 @@ def plot_dphi_comparison(
         ax_bot.set_xticks(phi_ticks)
         ax_bot.set_xticklabels(phi_labels, fontsize=11)
 
+    fig.tight_layout(pad=0.4)
     os.makedirs(save_dir, exist_ok=True)
-    out_path = os.path.join(save_dir, f"dphi_comparison_{pt_key}_{SUFFIX}.png")
-    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    out_path = os.path.join(save_dir, f"dphi_comparison_{pt_key}_{SUFFIX}.svg")
+    fig.savefig(out_path, dpi=200, bbox_inches="tight", pad_inches=0.03)
     print(f"  Saved: {out_path}")
     plt.close(fig)
     return out_path
@@ -592,7 +609,7 @@ def main():
     saved = []
 
     for pt_key in pt_keys:
-        print(f"Plotting + fitting: {pt_key}")
+        print("Plotting" + (" + fitting" if SHOW_FIT else "") + f": {pt_key}")
         path = plot_dphi_comparison(
             all_data=all_data,
             pt_key=pt_key,
@@ -602,6 +619,7 @@ def main():
             style=STYLE,
             show_ratio=SHOW_RATIO,
             fit_rows=fit_rows,
+            show_fit=SHOW_FIT,
         )
         if path:
             saved.append(path)
@@ -611,11 +629,13 @@ def main():
         print_fit_table(fit_rows)
 
         fit_df = pd.DataFrame(fit_rows)
-        csv_path = os.path.join(OUTPUT_DIR, f"double_gaussian_fit_results_{SUFFIX}.csv")
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        csv_path = os.path.join(
+            CSV_OUTPUT_DIR, f"double_gaussian_fit_results_{SUFFIX}.csv"
+        )
+        os.makedirs(CSV_OUTPUT_DIR, exist_ok=True)
         fit_df.to_csv(csv_path, index=False, float_format="%.6f")
         print(f"Fit results CSV written to: {csv_path}")
-    else:
+    elif SHOW_FIT:
         print("[warn] No fit results collected.")
 
     print(f"\nDone. {len(saved)} figure(s) written.")

@@ -648,8 +648,10 @@ def plot_integrated_yields(
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         print(f"  Saved: {save_path}")
 
-        # ── Write Pythia D(zT) points to CSV in the same directory ───────
-        csv_path = os.path.splitext(save_path)[0] + "_pythia.csv"
+        # ── Write Pythia D(zT) points to CSV under the parallel csv/ tree ─
+        csv_save_path = save_path.replace("plots/", "csv/", 1)
+        csv_path = os.path.splitext(csv_save_path)[0] + "_pythia.csv"
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
         df_out = pd.DataFrame(
             {
                 "zT_center": zt_centers,
@@ -786,7 +788,7 @@ def main():
 
     print_yield_table(slice_results)
 
-    out_dir = "plots/htff"
+    out_dir = "outputs/plots/htff"
     trig_range = (TRIG_PT_MIN, TRIG_PT_MAX)
     os.makedirs(out_dir, exist_ok=True)
 

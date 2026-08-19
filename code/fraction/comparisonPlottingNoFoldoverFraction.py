@@ -29,9 +29,9 @@ from matplotlib import ticker
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
-BASE_DIR = "plots/correlations/test"
+BASE_DIR = "outputs/csv/correlations/test"
 EXP_DIR = "datathief"
-OUTPUT_DIR = "plots/comparisons/test"
+OUTPUT_DIR = "outputs/plots/comparisons/test"
 
 SUBDIRS = [
     "nofsr",

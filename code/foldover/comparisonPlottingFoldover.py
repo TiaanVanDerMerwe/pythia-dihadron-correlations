@@ -55,9 +55,9 @@ plt.rcParams.update(
 TRIG_PT_MIN = 19.2  # GeV/c  (lower edge of trigger pT window)
 TRIG_PT_MAX = 48.0  # GeV/c  (upper edge of trigger pT window)
 
-BASE_DIR = "plots/correlations/cms/expComparison"
+BASE_DIR = "outputs/csv/correlations/cms/expComparison"
 CMS_DIR = "datathief"
-OUTPUT_DIR = "plots/correlations/cms/expComparison"
+OUTPUT_DIR = "outputs/plots/correlations/cms/expComparison"
 
 SUBDIRS = ["19.2-48.0"]
 
@@ -471,7 +471,7 @@ def plot_all_comparisons(
 
     os.makedirs(save_dir, exist_ok=True)
     out_path = os.path.join(
-        save_dir, f"dphi_comparison_trig{TRIG_PT_MIN}-{TRIG_PT_MAX}.pdf"
+        save_dir, f"dphi_comparison_trig{TRIG_PT_MIN}-{TRIG_PT_MAX}.svg"
     )
     fig.savefig(out_path, dpi=200, bbox_inches="tight")
     print(f"  Saved: {out_path}")
